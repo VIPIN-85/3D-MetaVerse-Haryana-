@@ -1,0 +1,2149 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Haryana 3D Digital Twin — Cyber City to Kurukshetra</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Three.js r128 -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+
+    <style>
+        * {
+            box-sizing: border-box;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            font-family: 'Inter', sans-serif;
+            background-color: #060913;
+            color: #f8fafc;
+        }
+        .font-display {
+            font-family: 'Space Grotesk', sans-serif;
+        }
+        #canvas-container {
+            position: absolute;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 1;
+        }
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+            cursor: grab;
+        }
+        canvas:active {
+            cursor: grabbing;
+        }
+        /* Glassmorphism Panels */
+        .glass-panel {
+            background: rgba(10, 15, 29, 0.78);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+        }
+        .glass-pill {
+            background: rgba(15, 23, 42, 0.85);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+        .glass-pill:hover {
+            border-color: rgba(56, 189, 248, 0.6);
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(14, 165, 233, 0.25);
+        }
+        .glass-pill.active {
+            background: linear-gradient(135deg, rgba(14, 165, 233, 0.35), rgba(59, 130, 246, 0.25));
+            border-color: #38bdf8;
+            box-shadow: 0 0 20px rgba(56, 189, 248, 0.35);
+        }
+        /* Custom 3D Projected HTML Pins */
+        .map-pin {
+            position: absolute;
+            transform: translate(-50%, -100%);
+            pointer-events: auto;
+            cursor: pointer;
+            z-index: 15;
+            transition: transform 0.2s ease, opacity 0.2s ease;
+        }
+        .map-pin:hover {
+            transform: translate(-50%, -108%) scale(1.08);
+            z-index: 30;
+        }
+        .pin-pulse {
+            position: absolute;
+            bottom: -4px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 14px;
+            height: 14px;
+            border-radius: 9999px;
+            animation: pulse-ring 2s infinite;
+        }
+        @keyframes pulse-ring {
+            0% { transform: translateX(-50%) scale(0.8); opacity: 0.9; }
+            100% { transform: translateX(-50%) scale(2.6); opacity: 0; }
+        }
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar {
+            width: 5px;
+            height: 5px;
+        }
+        ::-webkit-scrollbar-track {
+            background: rgba(15, 23, 42, 0.4);
+        }
+        ::-webkit-scrollbar-thumb {
+            background: rgba(148, 163, 184, 0.4);
+            border-radius: 9999px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(56, 189, 248, 0.7);
+        }
+        /* Range Slider */
+        input[type=range] {
+            -webkit-appearance: none;
+            background: transparent;
+        }
+        input[type=range]::-webkit-slider-runnable-track {
+            height: 6px;
+            border-radius: 999px;
+            background: linear-gradient(90deg, #1e293b 0%, #fbbf24 50%, #0f172a 100%);
+        }
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            height: 18px;
+            width: 18px;
+            border-radius: 50%;
+            background: #38bdf8;
+            border: 2px solid #ffffff;
+            margin-top: -6px;
+            cursor: pointer;
+            box-shadow: 0 0 10px rgba(56, 189, 248, 0.8);
+        }
+    </style>
+</head>
+<body class="relative select-none overflow-hidden">
+
+    <!-- 3D WebGL Viewport -->
+    <div id="canvas-container"></div>
+
+    <!-- Floating 3D HTML District & Landmark Markers Container -->
+    <div id="markers-layer" class="pointer-events-none absolute inset-0 overflow-hidden z-10"></div>
+
+    <!-- TOP NAVIGATION & TELEMETRY BAR -->
+    <header class="fixed top-3 left-3 right-3 z-30 flex flex-wrap items-center justify-between gap-3 pointer-events-none">
+        <!-- Brand & State Title -->
+        <div class="glass-panel pointer-events-auto flex items-center gap-3.5 px-4 py-2.5 rounded-2xl">
+            <div class="relative flex h-11 w-11 items-center justify-center rounded-xl bg-gradient-to-br from-sky-500 via-blue-600 to-amber-500 shadow-lg shadow-sky-500/20">
+                <i data-lucide="layers" class="h-6 w-6 text-white"></i>
+                <span class="absolute -bottom-1 -right-1 flex h-3.5 w-3.5">
+                    <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                    <span class="relative inline-flex rounded-full h-3.5 w-3.5 bg-emerald-500 border-2 border-slate-900"></span>
+                </span>
+            </div>
+            <div>
+                <div class="flex items-center gap-2">
+                    <h1 class="font-display text-base sm:text-lg font-bold tracking-tight text-white">HARYANA <span class="text-sky-400 font-normal">3D METAVERSE</span></h1>
+                    <span class="hidden sm:inline-block rounded-full bg-sky-500/20 border border-sky-400/30 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-sky-300">Digital Twin v4.2</span>
+                </div>
+                <p class="text-xs text-slate-400">Gurugram Cyber Hub • Kurukshetra Heritage • Faridabad Industry • Green Belt</p>
+            </div>
+        </div>
+
+        <!-- Live State Telemetry Ticker -->
+        <div class="glass-panel pointer-events-auto hidden xl:flex items-center gap-6 px-5 py-2.5 rounded-2xl text-xs">
+            <div class="flex items-center gap-2.5">
+                <div class="p-2 rounded-lg bg-sky-500/10 text-sky-400"><i data-lucide="building-2" class="w-4 h-4"></i></div>
+                <div>
+                    <div class="text-slate-400 text-[10px] uppercase tracking-wider">GSDP Growth</div>
+                    <div class="font-display font-bold text-sm text-white">₹11.2L Cr <span class="text-emerald-400 text-[11px]">+9.4%</span></div>
+                </div>
+            </div>
+            <div class="h-7 w-px bg-slate-700/60"></div>
+            <div class="flex items-center gap-2.5">
+                <div class="p-2 rounded-lg bg-amber-500/10 text-amber-400"><i data-lucide="train-front" class="w-4 h-4"></i></div>
+                <div>
+                    <div class="text-slate-400 text-[10px] uppercase tracking-wider">Rapid Metro & NH-48</div>
+                    <div class="font-display font-bold text-sm text-white" id="stat-traffic">428 Active Units</div>
+                </div>
+            </div>
+            <div class="h-7 w-px bg-slate-700/60"></div>
+            <div class="flex items-center gap-2.5">
+                <div class="p-2 rounded-lg bg-emerald-500/10 text-emerald-400"><i data-lucide="wheat" class="w-4 h-4"></i></div>
+                <div>
+                    <div class="text-slate-400 text-[10px] uppercase tracking-wider">Agri-Tech Output</div>
+                    <div class="font-display font-bold text-sm text-white">18.4 MT <span class="text-emerald-400 text-[11px]">Optimal</span></div>
+                </div>
+            </div>
+            <div class="h-7 w-px bg-slate-700/60"></div>
+            <div class="flex items-center gap-2.5">
+                <div class="p-2 rounded-lg bg-purple-500/10 text-purple-400"><i data-lucide="zap" class="w-4 h-4"></i></div>
+                <div>
+                    <div class="text-slate-400 text-[10px] uppercase tracking-wider">Smart Grid Load</div>
+                    <div class="font-display font-bold text-sm text-white" id="stat-power">12,480 MW</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Environment & Lighting Controls -->
+        <div class="glass-panel pointer-events-auto flex items-center gap-2 sm:gap-3 px-3.5 py-2 rounded-2xl">
+            <!-- Day / Sunset / Night Quick Modes -->
+            <div class="flex items-center bg-slate-900/90 p-1 rounded-xl border border-slate-700/60">
+                <button onclick="setTimePreset(11.5)" id="btn-day" class="px-2.5 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1.5 text-slate-300 hover:text-white transition">
+                    <i data-lucide="sun" class="w-3.5 h-3.5 text-amber-400"></i>
+                    <span class="hidden sm:inline">Day</span>
+                </button>
+                <button onclick="setTimePreset(17.8)" id="btn-dusk" class="px-2.5 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1.5 text-slate-300 hover:text-white transition">
+                    <i data-lucide="sunset" class="w-3.5 h-3.5 text-orange-400"></i>
+                    <span class="hidden sm:inline">Golden</span>
+                </button>
+                <button onclick="setTimePreset(21.5)" id="btn-night" class="px-2.5 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1.5 bg-sky-500/20 text-sky-300 border border-sky-400/30 transition">
+                    <i data-lucide="moon-star" class="w-3.5 h-3.5 text-sky-400"></i>
+                    <span class="hidden sm:inline">Cyber Night</span>
+                </button>
+            </div>
+
+            <!-- Solar Time Slider -->
+            <div class="hidden md:flex flex-col w-32 px-2">
+                <div class="flex justify-between text-[10px] text-slate-400 mb-1">
+                    <span>SOLAR TIME</span>
+                    <span id="clock-display" class="font-mono text-sky-300 font-semibold">21:30 IST</span>
+                </div>
+                <input id="time-slider" type="range" min="0" max="24" step="0.1" value="21.5" oninput="updateSolarTime(this.value)">
+            </div>
+
+            <!-- Toggle Labels -->
+            <button onclick="togglePins()" id="btn-pins" title="Toggle 3D District Labels" class="p-2 rounded-xl bg-sky-500/20 border border-sky-400/40 text-sky-300 hover:bg-sky-500/30 transition">
+                <i data-lucide="map-pin" class="w-4 h-4"></i>
+            </button>
+
+            <!-- Auto Orbit Toggle -->
+            <button onclick="toggleAutoOrbit()" id="btn-orbit" title="Toggle Cinematic Drone Orbit" class="p-2 rounded-xl bg-slate-800/80 border border-slate-700 text-slate-300 hover:text-white transition">
+                <i data-lucide="Orbit" class="w-4 h-4"></i>
+            </button>
+        </div>
+    </header>
+
+    <!-- LEFT PANEL: INTERACTIVE DISTRICT & LANDMARK INSPECTOR -->
+    <aside id="info-drawer" class="fixed left-3 top-20 bottom-20 z-20 w-80 sm:w-96 flex flex-col justify-between pointer-events-none transition-transform duration-300">
+        <!-- Main Inspector Card -->
+        <div class="glass-panel pointer-events-auto rounded-2xl p-4 sm:p-5 flex flex-col max-h-full overflow-y-auto">
+            <!-- Header Badge -->
+            <div class="flex items-center justify-between gap-2 mb-3">
+                <span id="district-badge" class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold uppercase tracking-wider bg-sky-500/20 text-sky-300 border border-sky-400/30">
+                    <span class="w-2 h-2 rounded-full bg-sky-400"></span>
+                    State Overview
+                </span>
+                <div class="flex items-center gap-1">
+                    <button onclick="resetCameraView()" class="text-xs text-slate-400 hover:text-sky-300 flex items-center gap-1 px-2 py-1 rounded-lg bg-slate-800/60 border border-slate-700/60 transition">
+                        <i data-lucide="maximize-2" class="w-3.5 h-3.5"></i> Reset View
+                    </button>
+                </div>
+            </div>
+
+            <!-- District Title & Subtitle -->
+            <h2 id="district-title" class="font-display text-xl sm:text-2xl font-bold text-white leading-tight">Haryana Integrated Megacity</h2>
+            <p id="district-subtitle" class="text-xs text-sky-400 font-medium mt-0.5 mb-3">Where Vedic Heritage Meets Fortune 500 Innovation</p>
+
+            <!-- Description -->
+            <p id="district-desc" class="text-xs sm:text-sm text-slate-300 leading-relaxed mb-4">
+                Explore a synthesized 3D architectural landscape uniting Haryana's 4 pillars: Gurugram's futuristic glass skyscrapers & Rapid Metro loop, Kurukshetra's sacred Brahma Sarovar & Jyotisar monument, Faridabad's heavy engineering & thermal corridors, and the lush Karnal-Hisar Indo-Gangetic agricultural breadbasket.
+            </p>
+
+            <!-- Key District Metrics Grid -->
+            <div class="grid grid-cols-2 gap-2.5 mb-4">
+                <div class="bg-slate-900/75 border border-slate-800 rounded-xl p-2.5">
+                    <div class="text-[10px] uppercase tracking-wider text-slate-400" id="metric-1-label">Economic Role</div>
+                    <div class="font-display font-bold text-sm sm:text-base text-white mt-0.5" id="metric-1-val">IT, Auto & Agri Hub</div>
+                </div>
+                <div class="bg-slate-900/75 border border-slate-800 rounded-xl p-2.5">
+                    <div class="text-[10px] uppercase tracking-wider text-slate-400" id="metric-2-label">Signature Transit</div>
+                    <div class="font-display font-bold text-sm sm:text-base text-sky-400 mt-0.5" id="metric-2-val">NH-48 & Rapid Metro</div>
+                </div>
+                <div class="bg-slate-900/75 border border-slate-800 rounded-xl p-2.5">
+                    <div class="text-[10px] uppercase tracking-wider text-slate-400" id="metric-3-label">Architectural Style</div>
+                    <div class="font-display font-bold text-sm sm:text-base text-amber-400 mt-0.5" id="metric-3-val">Neo-Futurist & Vedic</div>
+                </div>
+                <div class="bg-slate-900/75 border border-slate-800 rounded-xl p-2.5">
+                    <div class="text-[10px] uppercase tracking-wider text-slate-400" id="metric-4-label">Green Cover & Canal</div>
+                    <div class="font-display font-bold text-sm sm:text-base text-emerald-400 mt-0.5" id="metric-4-val">Western Yamuna Link</div>
+                </div>
+            </div>
+
+            <!-- Notable Landmarks in Selected Zone -->
+            <div class="mb-4">
+                <div class="flex items-center justify-between text-[11px] font-semibold uppercase tracking-wider text-slate-400 mb-2">
+                    <span>3D Structural Landmarks</span>
+                    <span class="text-sky-400">Click to Focus</span>
+                </div>
+                <div id="landmark-list" class="space-y-1.5">
+                    <!-- Populated dynamically via JS -->
+                </div>
+            </div>
+
+            <!-- Live Simulation Controls Box -->
+            <div class="mt-auto pt-3 border-t border-slate-800/80">
+                <div class="flex items-center justify-between text-xs text-slate-300 mb-2">
+                    <span class="flex items-center gap-1.5 font-medium"><i data-lucide="sliders" class="w-3.5 h-3.5 text-sky-400"></i> Simulation Layers</span>
+                    <span id="fps-counter" class="text-[11px] font-mono text-emerald-400">60 FPS</span>
+                </div>
+                <div class="grid grid-cols-3 gap-1.5 text-[11px]">
+                    <button onclick="toggleLayer('traffic')" id="layer-traffic" class="px-2 py-1.5 rounded-lg bg-sky-500/20 border border-sky-400/40 text-sky-200 font-medium transition">
+                        Highway & Metro
+                    </button>
+                    <button onclick="toggleLayer('weather')" id="layer-weather" class="px-2 py-1.5 rounded-lg bg-slate-800/80 border border-slate-700 text-slate-300 font-medium transition">
+                        Monsoon Rain
+                    </button>
+                    <button onclick="toggleLayer('grid')" id="layer-grid" class="px-2 py-1.5 rounded-lg bg-slate-800/80 border border-slate-700 text-slate-300 font-medium transition">
+                        GIS Topo Grid
+                    </button>
+                </div>
+            </div>
+        </div>
+    </aside>
+
+    <!-- RIGHT FLOATING MINI-MAP & CAMERA GUIDE -->
+    <div class="fixed right-3 top-20 z-20 hidden lg:flex flex-col gap-3 pointer-events-none w-64">
+        <!-- Interactive Sector Radar -->
+        <div class="glass-panel pointer-events-auto rounded-2xl p-3.5">
+            <div class="flex items-center justify-between mb-2">
+                <span class="text-[11px] font-semibold uppercase tracking-wider text-slate-300 flex items-center gap-1.5">
+                    <i data-lucide="compass" class="w-3.5 h-3.5 text-sky-400"></i> Sector Radar Map
+                </span>
+                <span class="text-[10px] font-mono text-slate-400">29.05°N, 76.08°E</span>
+            </div>
+            <div class="relative w-full h-44 rounded-xl bg-slate-950/90 border border-slate-800 overflow-hidden">
+                <canvas id="minimap-canvas" width="220" height="176" class="w-full h-full block cursor-pointer"></canvas>
+            </div>
+            <div class="mt-2 grid grid-cols-2 gap-1 text-[10px] text-slate-400">
+                <div class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-sky-400"></span>NW: Gurugram IT</div>
+                <div class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-amber-400"></span>NE: Kurukshetra</div>
+                <div class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-rose-400"></span>SE: Faridabad Ind.</div>
+                <div class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-emerald-400"></span>SW: Karnal Agri</div>
+            </div>
+        </div>
+
+        <!-- Navigation Controls Hint -->
+        <div class="glass-panel pointer-events-auto rounded-2xl p-3.5 text-xs space-y-2">
+            <div class="text-[11px] font-semibold uppercase tracking-wider text-slate-300">3D Camera Controls</div>
+            <div class="flex items-center justify-between text-slate-400">
+                <span>Left Drag / 1-Finger</span>
+                <span class="text-slate-200 font-medium">Orbit 360°</span>
+            </div>
+            <div class="flex items-center justify-between text-slate-400">
+                <span>Right Drag / Shift+Drag</span>
+                <span class="text-slate-200 font-medium">Pan Target</span>
+            </div>
+            <div class="flex items-center justify-between text-slate-400">
+                <span>Scroll / Pinch</span>
+                <span class="text-slate-200 font-medium">Zoom Altitude</span>
+            </div>
+            <div class="flex items-center justify-between text-slate-400">
+                <span>WASD / Arrow Keys</span>
+                <span class="text-slate-200 font-medium">Fly Roam</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- BOTTOM DISTRICT TELEPORTATION DOCK -->
+    <nav class="fixed bottom-3 left-3 right-3 z-30 flex items-center justify-center pointer-events-none">
+        <div class="glass-panel pointer-events-auto flex items-center gap-1.5 sm:gap-2 p-1.5 sm:p-2 rounded-2xl overflow-x-auto max-w-full">
+            <button onclick="selectDistrict('overview')" id="dock-overview" class="glass-pill active flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold text-white shrink-0">
+                <i data-lucide="globe" class="w-4 h-4 text-sky-400"></i>
+                <span>Full State View</span>
+            </button>
+            <button onclick="selectDistrict('gurugram')" id="dock-gurugram" class="glass-pill flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold text-slate-200 shrink-0">
+                <i data-lucide="cpu" class="w-4 h-4 text-cyan-400"></i>
+                <span>Gurugram Cyber City</span>
+            </button>
+            <button onclick="selectDistrict('kurukshetra')" id="dock-kurukshetra" class="glass-pill flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold text-slate-200 shrink-0">
+                <i data-lucide="sparkles" class="w-4 h-4 text-amber-400"></i>
+                <span>Kurukshetra Heritage</span>
+            </button>
+            <button onclick="selectDistrict('faridabad')" id="dock-faridabad" class="glass-pill flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold text-slate-200 shrink-0">
+                <i data-lucide="factory" class="w-4 h-4 text-rose-400"></i>
+                <span>Faridabad Industrial</span>
+            </button>
+            <button onclick="selectDistrict('agri')" id="dock-agri" class="glass-pill flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold text-slate-200 shrink-0">
+                <i data-lucide="sprout" class="w-4 h-4 text-emerald-400"></i>
+                <span>Karnal-Hisar Green Belt</span>
+            </button>
+            <button onclick="selectDistrict('expressway')" id="dock-expressway" class="glass-pill flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold text-slate-200 shrink-0">
+                <i data-lucide="train-front" class="w-4 h-4 text-purple-400"></i>
+                <span>NH-48 & Rapid Metro</span>
+            </button>
+        </div>
+    </nav>
+
+    <!-- MOBILE DRAWER TOGGLE BUTTON -->
+    <button onclick="toggleMobileDrawer()" class="fixed left-3 bottom-20 z-30 md:hidden glass-panel p-3 rounded-xl text-sky-400 pointer-events-auto">
+        <i data-lucide="panel-left" class="w-5 h-5"></i>
+    </button>
+
+    <script>
+        /***************************************************************************
+         * HARYANA 3D MEGACITY & REGIONAL DIGITAL TWIN
+         * Complete Procedural Three.js Architecture, Animated Transit & Lighting
+         ***************************************************************************/
+
+        // Initialize Lucide icons
+        lucide.createIcons();
+
+        // ==========================================
+        // 1. DISTRICT & LANDMARK DATA REPOSITORY
+        // ==========================================
+        const DISTRICTS = {
+            overview: {
+                badge: "State Overview • 44,212 km²",
+                color: "sky",
+                title: "Haryana Integrated Megacity",
+                subtitle: "Where Vedic Heritage Meets Fortune 500 Innovation",
+                desc: "This interactive 3D megastructure synthesizes Haryana's dramatic regional contrasts into one cohesive landscape: Gurugram's DLF Cyber City and Rapid Metro loop in the Northwest, Kurukshetra's sacred Brahma Sarovar in the Northeast, Faridabad's manufacturing and thermal hub in the Southeast, and Karnal-Hisar's fertile green belt in the Southwest.",
+                metrics: [
+                    { label: "Economic Role", val: "IT, Auto & Agri Hub" },
+                    { label: "Signature Transit", val: "NH-48 & Rapid Metro" },
+                    { label: "Architectural Style", val: "Neo-Futurist & Vedic" },
+                    { label: "Green Cover & Canal", val: "Western Yamuna Link" }
+                ],
+                camPos: { radius: 285, theta: 0.78, phi: 1.05, targetX: 0, targetY: 8, targetZ: 0 },
+                landmarks: [
+                    { name: "DLF Cyber Hub Skybridge", zone: "Gurugram (NW)", x: -95, y: 28, z: -85, radius: 115, theta: 0.4, phi: 1.15 },
+                    { name: "Brahma Sarovar & Rath", zone: "Kurukshetra (NE)", x: 95, y: 16, z: -85, radius: 110, theta: -0.6, phi: 1.1 },
+                    { name: "IMT Auto & Thermal Plant", zone: "Faridabad (SE)", x: 95, y: 24, z: 85, radius: 120, theta: -2.2, phi: 1.12 },
+                    { name: "Karnal Smart Agri-Farms", zone: "Green Belt (SW)", x: -95, y: 12, z: 85, radius: 115, theta: 2.3, phi: 1.08 }
+                ]
+            },
+            gurugram: {
+                badge: "Millennium City • Northwest Quadrant",
+                color: "cyan",
+                title: "Gurugram Cyber City & Golf Course Road",
+                subtitle: "India's Corporate, FinTech & Skyscraper Capital",
+                desc: "Featuring iconic glass curtain-wall towers, the cantilevered Cyber Hub Skybridge, twisted signature high-rises, rooftop helipads, and the elevated Rapid Metro loop. Over 250 Fortune 500 companies operate from this high-density smart urban core.",
+                metrics: [
+                    { label: "Skyline Peak", val: "Cyber Spire (88m Sim)" },
+                    { label: "Mass Transit", val: "Rapid Metro Loop" },
+                    { label: "Smart Tech", val: "100% LED & Solar Glass" },
+                    { label: "Key Corridor", val: "NH-48 Cyber Cloverleaf" }
+                ],
+                camPos: { radius: 125, theta: 0.55, phi: 1.12, targetX: -92, targetY: 22, targetZ: -85 },
+                landmarks: [
+                    { name: "Cyber City Gateway Twin Towers", zone: "Skybridge Core", x: -95, y: 38, z: -90, radius: 85, theta: 0.45, phi: 1.18 },
+                    { name: "The Helix Signature Spire", zone: "Golf Course Rd", x: -130, y: 46, z: -65, radius: 90, theta: 0.85, phi: 1.15 },
+                    { name: "Cyber Hub Amphitheater & Plaza", zone: "Retail & Dining", x: -65, y: 10, z: -65, radius: 65, theta: 0.25, phi: 1.05 },
+                    { name: "Rapid Metro Cyber Station", zone: "Transit Node", x: -55, y: 14, z: -105, radius: 70, theta: 0.1, phi: 1.1 }
+                ]
+            },
+            kurukshetra: {
+                badge: "Land of the Bhagavad Gita • Northeast Quadrant",
+                color: "amber",
+                title: "Kurukshetra Cultural & Spiritual Complex",
+                subtitle: "Sacred Brahma Sarovar, Jyotisar & Sheikh Chilli Tomb",
+                desc: "Anchored by the massive sacred water tank of Brahma Sarovar with red-sandstone stepped ghats, a central island temple connected by ceremonial causeways, the golden-domed Shikharas, and the monumental chariot monument commemorating the Gita Upadesh.",
+                metrics: [
+                    { label: "Sacred Reservoir", val: "Brahma Sarovar Tank" },
+                    { label: "Architecture", val: "Nagara & Mughal Dome" },
+                    { label: "Monument", val: "Golden Gita Chariot" },
+                    { label: "Heritage Aura", val: "Warm Evening Diyas" }
+                ],
+                camPos: { radius: 118, theta: -0.65, phi: 1.08, targetX: 95, targetY: 12, targetZ: -85 },
+                landmarks: [
+                    { name: "Brahma Sarovar Island Mandir", zone: "Sacred Sarovar", x: 95, y: 15, z: -85, radius: 72, theta: -0.5, phi: 1.12 },
+                    { name: "Jyotisar Golden Gita Chariot", zone: "East Ghat Plaza", x: 60, y: 12, z: -85, radius: 55, theta: -0.9, phi: 1.18 },
+                    { name: "Sheikh Chilli Marble Makbara", zone: "Heritage Hillock", x: 128, y: 20, z: -125, radius: 75, theta: -0.35, phi: 1.1 },
+                    { name: "Dharohar Museum & Vedic Stambh", zone: "South Promenade", x: 95, y: 14, z: -42, radius: 65, theta: -0.2, phi: 1.15 }
+                ]
+            },
+            faridabad: {
+                badge: "Industrial Powerhouse • Southeast Quadrant",
+                color: "rose",
+                title: "Faridabad-Manesar Industrial & Logistics Hub",
+                subtitle: "Heavy Engineering, Robotics, Tractors & Thermal Power",
+                desc: "Haryana's manufacturing backbone producing tractors, motorcycles, precision robotics, and power. Features hyperbolic cooling towers with rising vapor plumes, automated sawtooth assembly plants, container gantry cranes, and high-voltage substations.",
+                metrics: [
+                    { label: "Core Output", val: "Auto, Tractors & Steel" },
+                    { label: "Energy Node", val: "Twin Hyperbolic Towers" },
+                    { label: "Freight Link", val: "DFC Container Yard" },
+                    { label: "Clean Transition", val: "Rooftop Industrial Solar" }
+                ],
+                camPos: { radius: 125, theta: -2.35, phi: 1.1, targetX: 95, targetY: 18, targetZ: 85 },
+                landmarks: [
+                    { name: "Thermal Power Cooling Towers", zone: "Energy Sector", x: 128, y: 32, z: 118, radius: 85, theta: -2.1, phi: 1.12 },
+                    { name: "Automated Tractor & EV Megafactory", zone: "IMT Corridor", x: 75, y: 14, z: 75, radius: 75, theta: -2.5, phi: 1.08 },
+                    { name: "Dry Port Container Gantry Terminal", zone: "Logistics Hub", x: 120, y: 16, z: 58, radius: 70, theta: -1.8, phi: 1.1 },
+                    { name: "400kV Smart Grid Substation", zone: "Power Distribution", x: 55, y: 12, z: 120, radius: 65, theta: -2.7, phi: 1.12 }
+                ]
+            },
+            agri: {
+                badge: "Breadbasket of India • Southwest Quadrant",
+                color: "emerald",
+                title: "Karnal-Hisar Smart Agricultural Green Belt",
+                subtitle: "Mustard & Wheat Fields, Canal Irrigation & Wind Energy",
+                desc: "Representing Haryana's lush rural heartland and agricultural research institutes. Features golden Sarson (mustard) and emerald wheat fields, animated center-pivot irrigation booms, modern grain silos, dairy research domes, and Aravalli wind turbines.",
+                metrics: [
+                    { label: "Major Crops", val: "Basmati, Wheat, Mustard" },
+                    { label: "Water Lifeline", val: "Western Yamuna Canal" },
+                    { label: "Renewables", val: "Aravalli Wind Turbines" },
+                    { label: "Storage", val: "Smart Grain Silo Bank" }
+                ],
+                camPos: { radius: 120, theta: 2.35, phi: 1.08, targetX: -95, targetY: 12, targetZ: 85 },
+                landmarks: [
+                    { name: "Golden Mustard & Wheat Terraces", zone: "Indo-Gangetic Plain", x: -95, y: 6, z: 95, radius: 80, theta: 2.4, phi: 1.05 },
+                    { name: "Aravalli Ridge Wind Farm", zone: "Southwest Ridge", x: -145, y: 38, z: 135, radius: 95, theta: 2.15, phi: 1.15 },
+                    { name: "Karnal Automated Grain Silos", zone: "Agri Logistics", x: -55, y: 18, z: 62, radius: 68, theta: 2.6, phi: 1.12 },
+                    { name: "Gram Chaupal & Solar Microgrid", zone: "Model Smart Village", x: -125, y: 10, z: 52, radius: 65, theta: 1.9, phi: 1.1 }
+                ]
+            },
+            expressway: {
+                badge: "State Spine • Central Interchange",
+                color: "purple",
+                title: "NH-48 Expressway, Rapid Metro & Yamuna Canal",
+                subtitle: "Multi-Modal High-Speed Infrastructure Corridor",
+                desc: "At the center of the 3D megastructure lies the signature cable-stayed Suspension Interchange Bridge where the 8-lane NH-48 Expressway, the elevated Rapid Metro viaduct, and the Western Yamuna Canal intersect around the Ashoka Chakra State Plaza.",
+                metrics: [
+                    { label: "Central Bridge", val: "Swarna Jayanti Cable Span" },
+                    { label: "Metro Viaduct", val: "Bi-Directional Electric" },
+                    { label: "Highway Flow", val: "Autonomous AI Traffic" },
+                    { label: "Waterway", val: "Yamuna Link Canal" }
+                ],
+                camPos: { radius: 95, theta: 0.35, phi: 1.12, targetX: 0, targetY: 15, targetZ: 0 },
+                landmarks: [
+                    { name: "Swarna Jayanti Cable-Stayed Bridge", zone: "Central Interchange", x: 0, y: 22, z: 0, radius: 75, theta: 0.5, phi: 1.15 },
+                    { name: "Rapid Metro Central Viaduct Loop", zone: "Elevated Rail", x: -35, y: 16, z: -35, radius: 65, theta: 0.8, phi: 1.1 },
+                    { name: "Western Yamuna Canal Barrage", zone: "Hydro Engineering", x: 0, y: 6, z: 75, radius: 65, theta: 0.1, phi: 1.08 },
+                    { name: "Haryana Swarna Jayanti Chakra Monument", zone: "Central Roundabout", x: -32, y: 14, z: 32, radius: 55, theta: 1.2, phi: 1.15 }
+                ]
+            }
+        };
+
+        // Floating 3D HTML Marker definitions
+        const WORLD_PINS = [
+            { id: 'gurugram', title: 'Gurugram Cyber City', sub: 'IT & Skyscraper Hub', color: '#38bdf8', x: -95, y: 58, z: -85 },
+            { id: 'kurukshetra', title: 'Kurukshetra Heritage', sub: 'Brahma Sarovar & Gita Rath', color: '#fbbf24', x: 95, y: 36, z: -85 },
+            { id: 'faridabad', title: 'Faridabad Industrial', sub: 'Auto, Robotics & Power', color: '#fb7185', x: 95, y: 45, z: 85 },
+            { id: 'agri', title: 'Karnal-Hisar Green Belt', sub: 'Smart Agri & Wind Farm', color: '#34d399', x: -95, y: 35, z: 85 },
+            { id: 'expressway', title: 'NH-48 & Rapid Metro Hub', sub: 'Central Cable Bridge', color: '#c084fc', x: 0, y: 42, z: 0 }
+        ];
+
+        // ==========================================
+        // 2. THREE.JS SCENE, CAMERA & RENDERER SETUP
+        // ==========================================
+        const container = document.getElementById('canvas-container');
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x060a17);
+        scene.fog = new THREE.FogExp2(0x060a17, 0.0014);
+
+        const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 1, 1500);
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        renderer.toneMapping = THREE.ACESFilmicToneMapping;
+        renderer.toneMappingExposure = 1.15;
+        container.appendChild(renderer.domElement);
+
+        // ==========================================
+        // 3. PROCEDURAL CANVAS TEXTURES (NO EXTERNAL URLS)
+        // ==========================================
+        const nightEmissiveMaterials = [];
+
+        function createSkyscraperTexture(hue, accentColor, density = 0.7) {
+            const canvas = document.createElement('canvas');
+            canvas.width = 256;
+            canvas.height = 512;
+            const ctx = canvas.getContext('2d');
+
+            // Base glass curtain wall
+            ctx.fillStyle = '#091326';
+            ctx.fillRect(0, 0, 256, 512);
+
+            const cols = 8;
+            const rows = 32;
+            const padX = 4;
+            const padY = 3;
+            const cellW = (256 - padX * (cols + 1)) / cols;
+            const cellH = (512 - padY * (rows + 1)) / rows;
+
+            for (let r = 0; r < rows; r++) {
+                // Floor structural band
+                if (r % 4 === 0) {
+                    ctx.fillStyle = accentColor;
+                    ctx.fillRect(0, r * (cellH + padY), 256, 2);
+                }
+                for (let c = 0; c < cols; c++) {
+                    const isLit = Math.random() < density;
+                    if (isLit) {
+                        const brightness = 60 + Math.floor(Math.random() * 35);
+                        ctx.fillStyle = `hsl(${hue}, 85%, ${brightness}%)`;
+                    } else {
+                        ctx.fillStyle = '#111e36';
+                    }
+                    const x = padX + c * (cellW + padX);
+                    const y = padY + r * (cellH + padY);
+                    ctx.fillRect(x, y, cellW, cellH);
+                }
+            }
+
+            const texture = new THREE.CanvasTexture(canvas);
+            texture.wrapS = THREE.RepeatWrapping;
+            texture.wrapT = THREE.RepeatWrapping;
+            return texture;
+        }
+
+        function createRoadTexture() {
+            const canvas = document.createElement('canvas');
+            canvas.width = 128;
+            canvas.height = 512;
+            const ctx = canvas.getContext('2d');
+
+            ctx.fillStyle = '#181e29';
+            ctx.fillRect(0, 0, 128, 512);
+
+            // Median divider
+            ctx.fillStyle = '#fbbf24';
+            ctx.fillRect(60, 0, 3, 512);
+            ctx.fillRect(65, 0, 3, 512);
+
+            // Edge lines
+            ctx.fillStyle = '#e2e8f0';
+            ctx.fillRect(6, 0, 2, 512);
+            ctx.fillRect(120, 0, 2, 512);
+
+            // Dashed lane markings
+            ctx.fillStyle = '#94a3b8';
+            for (let y = 0; y < 512; y += 32) {
+                ctx.fillRect(32, y, 2, 16);
+                ctx.fillRect(94, y, 2, 16);
+            }
+
+            const tex = new THREE.CanvasTexture(canvas);
+            tex.wrapS = THREE.RepeatWrapping;
+            tex.wrapT = THREE.RepeatWrapping;
+            tex.repeat.set(1, 24);
+            return tex;
+        }
+
+        function createAgriFieldTexture() {
+            const canvas = document.createElement('canvas');
+            canvas.width = 512;
+            canvas.height = 512;
+            const ctx = canvas.getContext('2d');
+
+            const colors = ['#15803d', '#166534', '#ca8a04', '#eab308', '#4d7c0f', '#14532d'];
+            const plots = 4;
+            const size = 512 / plots;
+
+            for (let gx = 0; gx < plots; gx++) {
+                for (let gy = 0; gy < plots; gy++) {
+                    const col = colors[(gx * 3 + gy) % colors.length];
+                    ctx.fillStyle = col;
+                    ctx.fillRect(gx * size, gy * size, size, size);
+
+                    // Crop furrow lines
+                    ctx.strokeStyle = 'rgba(0,0,0,0.18)';
+                    ctx.lineWidth = 2;
+                    for (let i = 4; i < size; i += 8) {
+                        ctx.beginPath();
+                        if ((gx + gy) % 2 === 0) {
+                            ctx.moveTo(gx * size + i, gy * size);
+                            ctx.lineTo(gx * size + i, (gy + 1) * size);
+                        } else {
+                            ctx.moveTo(gx * size, gy * size + i);
+                            ctx.lineTo((gx + 1) * size, gy * size + i);
+                        }
+                        ctx.stroke();
+                    }
+                    // Soil bund border
+                    ctx.strokeStyle = '#3f2e1e';
+                    ctx.lineWidth = 4;
+                    ctx.strokeRect(gx * size, gy * size, size, size);
+                }
+            }
+
+            const tex = new THREE.CanvasTexture(canvas);
+            tex.wrapS = THREE.RepeatWrapping;
+            tex.wrapT = THREE.RepeatWrapping;
+            tex.repeat.set(2, 2);
+            return tex;
+        }
+
+        const towerTexCyan = createSkyscraperTexture(195, '#38bdf8', 0.72);
+        const towerTexBlue = createSkyscraperTexture(215, '#60a5fa', 0.65);
+        const towerTexGold = createSkyscraperTexture(42, '#fbbf24', 0.58);
+        const roadTex = createRoadTexture();
+        const agriTex = createAgriFieldTexture();
+
+        // Register materials that glow stronger at night
+        function makeGlowMaterial(colorHex, intensity = 0.9) {
+            const mat = new THREE.MeshStandardMaterial({
+                color: colorHex,
+                emissive: colorHex,
+                emissiveIntensity: intensity,
+                roughness: 0.2,
+                metalness: 0.5
+            });
+            mat.userData.baseIntensity = intensity;
+            nightEmissiveMaterials.push(mat);
+            return mat;
+        }
+
+        // ==========================================
+        // 4. LIGHTING, SKY DOME & CELESTIAL SYSTEM
+        // ==========================================
+        const ambientLight = new THREE.AmbientLight(0x334155, 0.7);
+        scene.add(ambientLight);
+
+        const hemiLight = new THREE.HemisphereLight(0x38bdf8, 0x0f172a, 0.65);
+        hemiLight.position.set(0, 200, 0);
+        scene.add(hemiLight);
+
+        const dirLight = new THREE.DirectionalLight(0xfffbeb, 1.2);
+        dirLight.position.set(120, 180, 90);
+        dirLight.castShadow = true;
+        dirLight.shadow.mapSize.width = 2048;
+        dirLight.shadow.mapSize.height = 2048;
+        dirLight.shadow.camera.near = 10;
+        dirLight.shadow.camera.far = 550;
+        const d = 220;
+        dirLight.shadow.camera.left = -d;
+        dirLight.shadow.camera.right = d;
+        dirLight.shadow.camera.top = d;
+        dirLight.shadow.camera.bottom = -d;
+        dirLight.shadow.bias = -0.0005;
+        scene.add(dirLight);
+
+        // District Accent Point Lights
+        const cyberPointLight = new THREE.PointLight(0x0ea5e9, 2.5, 160);
+        cyberPointLight.position.set(-95, 45, -85);
+        scene.add(cyberPointLight);
+
+        const heritagePointLight = new THREE.PointLight(0xf59e0b, 2.2, 150);
+        heritagePointLight.position.set(95, 30, -85);
+        scene.add(heritagePointLight);
+
+        const industryPointLight = new THREE.PointLight(0xf43f5e, 1.8, 150);
+        industryPointLight.position.set(95, 35, 85);
+        scene.add(industryPointLight);
+
+        // Starfield dome for night sky
+        const starsGeo = new THREE.BufferGeometry();
+        const starCount = 1400;
+        const starPositions = new Float32Array(starCount * 3);
+        for (let i = 0; i < starCount; i++) {
+            const r = 550 + Math.random() * 150;
+            const theta = Math.random() * Math.PI * 2;
+            const phi = Math.random() * Math.PI * 0.48;
+            starPositions[i * 3] = r * Math.sin(phi) * Math.cos(theta);
+            starPositions[i * 3 + 1] = r * Math.cos(phi) + 20;
+            starPositions[i * 3 + 2] = r * Math.sin(phi) * Math.sin(theta);
+        }
+        starsGeo.setAttribute('position', new THREE.BufferAttribute(starPositions, 3));
+        const starsMat = new THREE.PointsMaterial({ color: 0xe2e8f0, size: 1.8, transparent: true, opacity: 0.85 });
+        const starField = new THREE.Points(starsGeo, starsMat);
+        scene.add(starField);
+
+        // Sun / Moon Orb
+        const celestialOrb = new THREE.Mesh(
+            new THREE.SphereGeometry(14, 24, 24),
+            new THREE.MeshBasicMaterial({ color: 0x38bdf8 })
+        );
+        scene.add(celestialOrb);
+
+        // ==========================================
+        // 5. MASTER TERRAIN PLATE & GIS TOPOGRAPHY
+        // ==========================================
+        const worldGroup = new THREE.Group();
+        scene.add(worldGroup);
+
+        // Architectural Maquette Base Pedestal
+        const basePedestal = new THREE.Mesh(
+            new THREE.BoxGeometry(390, 8, 390),
+            new THREE.MeshStandardMaterial({ color: 0x090d16, roughness: 0.8, metalness: 0.2 })
+        );
+        basePedestal.position.y = -4.2;
+        basePedestal.receiveShadow = true;
+        worldGroup.add(basePedestal);
+
+        // Glowing Neon Rim around the Haryana State Plinth
+        const rimGlowMat = makeGlowMaterial(0x0ea5e9, 0.85);
+        const rimFrame = new THREE.Mesh(
+            new THREE.BoxGeometry(392, 1.2, 392),
+            rimGlowMat
+        );
+        rimFrame.position.y = -0.8;
+        worldGroup.add(rimFrame);
+
+        // Quadrant Ground Surfaces
+        // 1. NW Gurugram Urban Plaza Pad
+        const nwGround = new THREE.Mesh(
+            new THREE.BoxGeometry(175, 1, 175),
+            new THREE.MeshStandardMaterial({ color: 0x111827, roughness: 0.6, metalness: 0.3 })
+        );
+        nwGround.position.set(-98, 0, -98);
+        nwGround.receiveShadow = true;
+        worldGroup.add(nwGround);
+
+        // 2. NE Kurukshetra Sandstone Heritage Grounds
+        const neGround = new THREE.Mesh(
+            new THREE.BoxGeometry(175, 1, 175),
+            new THREE.MeshStandardMaterial({ color: 0x2a1f18, roughness: 0.85 })
+        );
+        neGround.position.set(98, 0, -98);
+        neGround.receiveShadow = true;
+        worldGroup.add(neGround);
+
+        // 3. SE Faridabad Concrete Industrial Tarmac
+        const seGround = new THREE.Mesh(
+            new THREE.BoxGeometry(175, 1, 175),
+            new THREE.MeshStandardMaterial({ color: 0x1e242b, roughness: 0.75 })
+        );
+        seGround.position.set(98, 0, 98);
+        seGround.receiveShadow = true;
+        worldGroup.add(seGround);
+
+        // 4. SW Karnal-Hisar Fertile Agricultural Fields
+        const swGround = new THREE.Mesh(
+            new THREE.BoxGeometry(175, 1, 175),
+            new THREE.MeshStandardMaterial({ map: agriTex, roughness: 0.9 })
+        );
+        swGround.position.set(-98, 0, 98);
+        swGround.receiveShadow = true;
+        worldGroup.add(swGround);
+
+        // Optional GIS Topographic Overlay Grid
+        const gisGridHelper = new THREE.GridHelper(384, 48, 0x38bdf8, 0x1e293b);
+        gisGridHelper.position.y = 0.65;
+        gisGridHelper.visible = false;
+        worldGroup.add(gisGridHelper);
+
+        // ==========================================
+        // 6. HIGHWAYS (NH-48), YAMUNA CANAL & CENTRAL BRIDGE
+        // ==========================================
+        const infrastructureGroup = new THREE.Group();
+        worldGroup.add(infrastructureGroup);
+
+        // East-West NH-48 Super-Expressway (along X axis, Z = 0)
+        const highwayEW = new THREE.Mesh(
+            new THREE.BoxGeometry(386, 1.1, 20),
+            new THREE.MeshStandardMaterial({ map: roadTex, roughness: 0.7 })
+        );
+        highwayEW.position.set(0, 0.2, 0);
+        highwayEW.receiveShadow = true;
+        infrastructureGroup.add(highwayEW);
+
+        // North-South KMP / GT Road Corridor (along Z axis, X = -12)
+        const highwayNS = new THREE.Mesh(
+            new THREE.BoxGeometry(16, 1.08, 386),
+            new THREE.MeshStandardMaterial({ map: roadTex, roughness: 0.7 })
+        );
+        highwayNS.rotation.y = Math.PI / 2; // Align texture
+        highwayNS.geometry = new THREE.BoxGeometry(386, 1.08, 16);
+        highwayNS.position.set(-12, 0.18, 0);
+        highwayNS.receiveShadow = true;
+        infrastructureGroup.add(highwayNS);
+
+        // Western Yamuna Link Canal (Flowing North-South along X = 12)
+        const canalWaterMat = new THREE.MeshStandardMaterial({
+            color: 0x0284c7,
+            emissive: 0x0369a1,
+            emissiveIntensity: 0.35,
+            roughness: 0.12,
+            metalness: 0.85
+        });
+        const canalBed = new THREE.Mesh(new THREE.BoxGeometry(14, 1.1, 386), canalWaterMat);
+        canalBed.position.set(12, 0.15, 0);
+        infrastructureGroup.add(canalBed);
+
+        // Canal Embankment Walls
+        const bankMat = new THREE.MeshStandardMaterial({ color: 0x475569, roughness: 0.8 });
+        [-1, 1].forEach(side => {
+            const bank = new THREE.Mesh(new THREE.BoxGeometry(1.5, 1.8, 386), bankMat);
+            bank.position.set(12 + side * 7.5, 0.5, 0);
+            infrastructureGroup.add(bank);
+        });
+
+        // Swarna Jayanti Signature Cable-Stayed Central Bridge (At Center 0,0)
+        function buildCentralCableBridge() {
+            const bridgeGroup = new THREE.Group();
+            const pylonMat = new THREE.MeshStandardMaterial({ color: 0xf8fafc, roughness: 0.3, metalness: 0.5 });
+            const cableMat = makeGlowMaterial(0x38bdf8, 0.9);
+
+            [-22, 22].forEach(px => {
+                // A-Frame Pylon Legs
+                const leftLeg = new THREE.Mesh(new THREE.CylinderGeometry(1.1, 1.8, 46, 12), pylonMat);
+                leftLeg.position.set(px, 22, -12);
+                leftLeg.rotation.x = 0.22;
+                leftLeg.castShadow = true;
+                bridgeGroup.add(leftLeg);
+
+                const rightLeg = new THREE.Mesh(new THREE.CylinderGeometry(1.1, 1.8, 46, 12), pylonMat);
+                rightLeg.position.set(px, 22, 12);
+                rightLeg.rotation.x = -0.22;
+                rightLeg.castShadow = true;
+                bridgeGroup.add(rightLeg);
+
+                // Top Spire Crown
+                const crown = new THREE.Mesh(new THREE.CylinderGeometry(0.4, 1.4, 16, 12), cableMat);
+                crown.position.set(px, 48, 0);
+                bridgeGroup.add(crown);
+
+                // Cross Struts
+                [16, 30, 40].forEach(y => {
+                    const strut = new THREE.Mesh(new THREE.BoxGeometry(2.2, 1.6, 16 - y * 0.28), pylonMat);
+                    strut.position.set(px, y, 0);
+                    bridgeGroup.add(strut);
+                });
+
+                // Illuminated Stay Cables
+                for (let i = -3; i <= 3; i++) {
+                    if (i === 0) continue;
+                    const anchorX = px + i * 11;
+                    const topPt = new THREE.Vector3(px, 42, 0);
+                    const botPtL = new THREE.Vector3(anchorX, 1.5, -9.5);
+                    const botPtR = new THREE.Vector3(anchorX, 1.5, 9.5);
+
+                    [botPtL, botPtR].forEach(botPt => {
+                        const dist = topPt.distanceTo(botPt);
+                        const cyl = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, dist, 6), cableMat);
+                        cyl.position.copy(topPt).add(botPt).multiplyScalar(0.5);
+                        cyl.lookAt(botPt);
+                        cyl.rotateX(Math.PI / 2);
+                        bridgeGroup.add(cyl);
+                    });
+                }
+            });
+
+            // Haryana Swarna Jayanti Ashoka Chakra Monument (Southwest of Interchange)
+            const monumentGroup = new THREE.Group();
+            monumentGroup.position.set(-32, 0.5, 32);
+
+            const ped = new THREE.Mesh(
+                new THREE.CylinderGeometry(7, 9, 4, 24),
+                new THREE.MeshStandardMaterial({ color: 0x991b1b, roughness: 0.6 })
+            );
+            ped.position.y = 2;
+            monumentGroup.add(ped);
+
+            const chakraMat = makeGlowMaterial(0xfbbf24, 0.8);
+            const chakraRing = new THREE.Mesh(new THREE.TorusGeometry(8, 0.7, 16, 48), chakraMat);
+            chakraRing.position.y = 12;
+            chakraRing.rotation.y = Math.PI / 4;
+            monumentGroup.add(chakraRing);
+
+            for (let s = 0; s < 12; s++) {
+                const spoke = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.15, 15.5, 6), chakraMat);
+                spoke.position.y = 12;
+                spoke.rotation.y = Math.PI / 4;
+                spoke.rotation.z = (s * Math.PI) / 12;
+                monumentGroup.add(spoke);
+            }
+            bridgeGroup.add(monumentGroup);
+
+            infrastructureGroup.add(bridgeGroup);
+        }
+        buildCentralCableBridge();
+
+        // Highway Streetlights
+        function buildHighwayLights() {
+            const poleMat = new THREE.MeshStandardMaterial({ color: 0x64748b, metalness: 0.7 });
+            const bulbMat = makeGlowMaterial(0xfef08a, 1.2);
+
+            for (let x = -180; x <= 180; x += 28) {
+                if (Math.abs(x) < 35) continue;
+                [-11, 11].forEach(z => {
+                    const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.25, 9, 6), poleMat);
+                    pole.position.set(x, 4.5, z);
+                    infrastructureGroup.add(pole);
+
+                    const lamp = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.3, 2.2), bulbMat);
+                    lamp.position.set(x, 9, z > 0 ? z - 0.8 : z + 0.8);
+                    infrastructureGroup.add(lamp);
+                });
+            }
+        }
+        buildHighwayLights();
+
+        // ==========================================
+        // 7. ZONE 1 (NW): GURUGRAM CYBER CITY & GOLF COURSE RD
+        // ==========================================
+        const gurugramGroup = new THREE.Group();
+        worldGroup.add(gurugramGroup);
+
+        const aviationBeacons = [];
+
+        function createSkyscraper(x, z, w, d, h, tex, accentHex = 0x38bdf8, twisted = false) {
+            const bGroup = new THREE.Group();
+            bGroup.position.set(x, 0.5, z);
+
+            const wallMat = new THREE.MeshStandardMaterial({
+                color: 0xffffff,
+                map: tex,
+                emissive: 0xffffff,
+                emissiveMap: tex,
+                emissiveIntensity: 0.75,
+                roughness: 0.18,
+                metalness: 0.75
+            });
+            wallMat.userData.baseIntensity = 0.85;
+            nightEmissiveMaterials.push(wallMat);
+
+            const accentMat = makeGlowMaterial(accentHex, 0.9);
+            const roofMat = new THREE.MeshStandardMaterial({ color: 0x0f172a, roughness: 0.5, metalness: 0.5 });
+
+            // Lobby Podium
+            const podium = new THREE.Mesh(new THREE.BoxGeometry(w + 4, 4, d + 4), roofMat);
+            podium.position.y = 2;
+            podium.castShadow = true;
+            podium.receiveShadow = true;
+            bGroup.add(podium);
+
+            if (twisted) {
+                // Stacked rotated tiers for iconic Golf Course Road twisted tower
+                const tiers = 10;
+                const tierH = h / tiers;
+                for (let t = 0; t < tiers; t++) {
+                    const scale = 1 - t * 0.025;
+                    const tier = new THREE.Mesh(new THREE.BoxGeometry(w * scale, tierH - 0.2, d * scale), wallMat);
+                    tier.position.y = 4 + t * tierH + tierH / 2;
+                    tier.rotation.y = t * 0.09;
+                    tier.castShadow = true;
+                    bGroup.add(tier);
+
+                    const ring = new THREE.Mesh(new THREE.BoxGeometry(w * scale + 0.4, 0.35, d * scale + 0.4), accentMat);
+                    ring.position.y = 4 + (t + 1) * tierH;
+                    ring.rotation.y = t * 0.09;
+                    bGroup.add(ring);
+                }
+            } else {
+                // Main Glass Tower Shaft
+                const shaft = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), wallMat);
+                shaft.position.y = 4 + h / 2;
+                shaft.castShadow = true;
+                shaft.receiveShadow = true;
+                bGroup.add(shaft);
+
+                // Glowing Crown Frame
+                const crown = new THREE.Mesh(new THREE.BoxGeometry(w + 0.6, 1.4, d + 0.6), accentMat);
+                crown.position.y = 4 + h + 0.5;
+                bGroup.add(crown);
+            }
+
+            // Rooftop Helipad or Spire
+            const spire = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.45, 12, 8), accentMat);
+            spire.position.y = 4 + h + 6;
+            bGroup.add(spire);
+
+            // Red Aviation Warning Light
+            const beaconMat = new THREE.MeshBasicMaterial({ color: 0xff2a4b });
+            const beacon = new THREE.Mesh(new THREE.SphereGeometry(0.65, 8, 8), beaconMat);
+            beacon.position.y = 4 + h + 12.2;
+            bGroup.add(beacon);
+            aviationBeacons.push(beacon);
+
+            gurugramGroup.add(bGroup);
+            return bGroup;
+        }
+
+        function buildGurugramCyberCity() {
+            // 1. DLF Cyber City Gateway Twin Towers + Cantilevered Skybridge
+            createSkyscraper(-112, -92, 18, 18, 62, towerTexCyan, 0x38bdf8, false);
+            createSkyscraper(-78, -92, 18, 18, 62, towerTexCyan, 0x38bdf8, false);
+
+            // Cantilevered Skybridge linking the Twin Towers
+            const bridgeMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, metalness: 0.8, roughness: 0.2 });
+            const skyBridge = new THREE.Mesh(new THREE.BoxGeometry(36, 5, 10), bridgeMat);
+            skyBridge.position.set(-95, 48, -92);
+            skyBridge.castShadow = true;
+            gurugramGroup.add(skyBridge);
+
+            const bridgeNeon = new THREE.Mesh(new THREE.BoxGeometry(36.4, 0.8, 10.4), makeGlowMaterial(0x38bdf8, 1.1));
+            bridgeNeon.position.set(-95, 50.8, -92);
+            gurugramGroup.add(bridgeNeon);
+
+            // 2. The Helix Signature Spire (Twisted Supertall)
+            createSkyscraper(-135, -65, 20, 20, 78, towerTexBlue, 0x0ea5e9, true);
+
+            // 3. Surrounding Corporate High-Rises
+            const towerSpecs = [
+                [-148, -118, 16, 16, 54, towerTexBlue, 0x60a5fa],
+                [-115, -138, 22, 15, 48, towerTexCyan, 0x38bdf8],
+                [-75, -138, 16, 16, 56, towerTexGold, 0xfbbf24],
+                [-45, -125, 15, 18, 42, towerTexBlue, 0x38bdf8],
+                [-158, -88, 15, 15, 44, towerTexCyan, 0x2dd4bf],
+                [-95, -52, 18, 14, 38, towerTexGold, 0xfbbf24],
+                [-52, -78, 14, 14, 34, towerTexCyan, 0x38bdf8],
+                [-135, -155, 18, 16, 40, towerTexBlue, 0x818cf8],
+                [-95, -162, 20, 14, 50, towerTexCyan, 0x38bdf8]
+            ];
+            towerSpecs.forEach(s => createSkyscraper(s[0], s[1], s[2], s[3], s[4], s[5], s[6], false));
+
+            // 4. DLF Cyber Hub Tensile Canopy Amphitheater Plaza
+            const hubGroup = new THREE.Group();
+            hubGroup.position.set(-65, 0.6, -50);
+
+            const plazaPad = new THREE.Mesh(
+                new THREE.CylinderGeometry(18, 19, 1.2, 32),
+                new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.4 })
+            );
+            hubGroup.add(plazaPad);
+
+            const canopyMat = new THREE.MeshStandardMaterial({
+                color: 0xf8fafc,
+                emissive: 0x38bdf8,
+                emissiveIntensity: 0.45,
+                roughness: 0.3,
+                side: THREE.DoubleSide
+            });
+            for (let c = 0; c < 5; c++) {
+                const ang = (c * Math.PI * 2) / 5;
+                const cone = new THREE.Mesh(new THREE.ConeGeometry(8, 7, 16, 1, true), canopyMat);
+                cone.position.set(Math.cos(ang) * 9, 5, Math.sin(ang) * 9);
+                hubGroup.add(cone);
+            }
+            gurugramGroup.add(hubGroup);
+        }
+        buildGurugramCyberCity();
+
+        // ==========================================
+        // 8. ELEVATED RAPID METRO LOOP & ANIMATED TRAINS
+        // ==========================================
+        const metroCurve = new THREE.CatmullRomCurve3([
+            new THREE.Vector3(-42, 12, -38),
+            new THREE.Vector3(-105, 12, -38),
+            new THREE.Vector3(-152, 14, -72),
+            new THREE.Vector3(-152, 14, -142),
+            new THREE.Vector3(-95, 14, -152),
+            new THREE.Vector3(-42, 12, -115)
+        ], true);
+
+        function buildRapidMetroViaduct() {
+            const trackGeo = new THREE.TubeGeometry(metroCurve, 120, 1.3, 8, true);
+            const trackMat = new THREE.MeshStandardMaterial({ color: 0x94a3b8, roughness: 0.4, metalness: 0.6 });
+            const viaduct = new THREE.Mesh(trackGeo, trackMat);
+            viaduct.castShadow = true;
+            gurugramGroup.add(viaduct);
+
+            // Glowing Cyan Maglev/Electric Rail Strip
+            const neonRailGeo = new THREE.TubeGeometry(metroCurve, 120, 0.35, 6, true);
+            const neonRail = new THREE.Mesh(neonRailGeo, makeGlowMaterial(0x00f2fe, 1.1));
+            neonRail.position.y = 1.1;
+            gurugramGroup.add(neonRail);
+
+            // Concrete Support Pillars
+            const pillarMat = new THREE.MeshStandardMaterial({ color: 0x64748b, roughness: 0.7 });
+            const pts = metroCurve.getSpacedPoints(26);
+            pts.forEach(pt => {
+                const pillar = new THREE.Mesh(new THREE.CylinderGeometry(0.9, 1.2, pt.y, 10), pillarMat);
+                pillar.position.set(pt.x, pt.y / 2, pt.z);
+                pillar.castShadow = true;
+                gurugramGroup.add(pillar);
+            });
+
+            // Cyber City Rapid Metro Futuristic Shell Station
+            const stPt = new THREE.Vector3(-48, 12.5, -95);
+            const stationShell = new THREE.Mesh(
+                new THREE.CylinderGeometry(5.5, 5.5, 22, 16, 1, true, 0, Math.PI),
+                new THREE.MeshStandardMaterial({
+                    color: 0x38bdf8,
+                    emissive: 0x0284c7,
+                    emissiveIntensity: 0.5,
+                    transparent: true,
+                    opacity: 0.75,
+                    side: THREE.DoubleSide
+                })
+            );
+            stationShell.rotation.x = Math.PI / 2;
+            stationShell.rotation.z = Math.PI / 2;
+            stationShell.position.copy(stPt);
+            gurugramGroup.add(stationShell);
+        }
+        buildRapidMetroViaduct();
+
+        // Create 2 Multi-Coach Rapid Metro Trains
+        const metroTrains = [];
+        for (let t = 0; t < 2; t++) {
+            const coaches = [];
+            for (let c = 0; c < 3; c++) {
+                const coach = new THREE.Mesh(
+                    new THREE.BoxGeometry(2.4, 2.2, 5.8),
+                    makeGlowMaterial(c === 0 ? 0x38bdf8 : 0xe2e8f0, 0.95)
+                );
+                scene.add(coach);
+                coaches.push(coach);
+            }
+            metroTrains.push({ baseProgress: t * 0.5, speed: 0.045, coaches });
+        }
+
+        // ==========================================
+        // 9. ZONE 2 (NE): KURUKSHETRA HERITAGE & SAROVAR
+        // ==========================================
+        const kurukshetraGroup = new THREE.Group();
+        worldGroup.add(kurukshetraGroup);
+
+        function buildKurukshetraComplex() {
+            const centerX = 98;
+            const centerZ = -92;
+
+            const sandstoneMat = new THREE.MeshStandardMaterial({ color: 0xc2593f, roughness: 0.75 });
+            const goldMat = makeGlowMaterial(0xfbbf24, 0.65);
+            const marbleMat = new THREE.MeshStandardMaterial({ color: 0xfef3c7, roughness: 0.35, metalness: 0.1 });
+
+            // 1. Sacred Brahma Sarovar Water Reservoir
+            const sarovarWater = new THREE.Mesh(
+                new THREE.BoxGeometry(88, 1.2, 68),
+                new THREE.MeshStandardMaterial({
+                    color: 0x0369a1,
+                    emissive: 0x075985,
+                    emissiveIntensity: 0.3,
+                    roughness: 0.1,
+                    metalness: 0.9
+                })
+            );
+            sarovarWater.position.set(centerX, 0.8, centerZ);
+            kurukshetraGroup.add(sarovarWater);
+
+            // Stepped Red-Sandstone Ghats Perimeter
+            for (let step = 0; step < 3; step++) {
+                const w = 96 - step * 3;
+                const d = 76 - step * 3;
+                const h = 3.2 - step * 0.8;
+                // North & South Ghat Walls
+                [-1, 1].forEach(dir => {
+                    const wallNS = new THREE.Mesh(new THREE.BoxGeometry(w, h, 2.2), sandstoneMat);
+                    wallNS.position.set(centerX, h / 2, centerZ + dir * (d / 2));
+                    kurukshetraGroup.add(wallNS);
+
+                    const wallEW = new THREE.Mesh(new THREE.BoxGeometry(2.2, h, d), sandstoneMat);
+                    wallEW.position.set(centerX + dir * (w / 2), h / 2, centerZ);
+                    kurukshetraGroup.add(wallEW);
+                });
+            }
+
+            // 2. Central Island Sarveshwar Mahadev Temple & Causeway Bridge
+            const island = new THREE.Mesh(new THREE.BoxGeometry(22, 3.5, 22), sandstoneMat);
+            island.position.set(centerX, 1.8, centerZ);
+            kurukshetraGroup.add(island);
+
+            // Causeway Footbridge
+            const bridge = new THREE.Mesh(new THREE.BoxGeometry(38, 2.6, 4.5), marbleMat);
+            bridge.position.set(centerX - 24, 1.8, centerZ);
+            kurukshetraGroup.add(bridge);
+
+            // Nagara Style Temple Shikhara Spire on Island
+            for (let tier = 0; tier < 7; tier++) {
+                const s = 13 - tier * 1.65;
+                const block = new THREE.Mesh(new THREE.BoxGeometry(s, 3.2, s), tier % 2 === 0 ? marbleMat : sandstoneMat);
+                block.position.set(centerX, 4.5 + tier * 2.9, centerZ);
+                block.castShadow = true;
+                kurukshetraGroup.add(block);
+            }
+            // Golden Amalaka & Kalash Finial
+            const kalash = new THREE.Mesh(new THREE.ConeGeometry(2.2, 6, 16), goldMat);
+            kalash.position.set(centerX, 27, centerZ);
+            kurukshetraGroup.add(kalash);
+
+            // 3. Jyotisar Monumental Golden Gita Chariot (Rath) on West Promenade
+            const rathGroup = new THREE.Group();
+            rathGroup.position.set(centerX - 42, 3.2, centerZ);
+
+            const rathBase = new THREE.Mesh(new THREE.BoxGeometry(10, 2.5, 7), sandstoneMat);
+            rathGroup.add(rathBase);
+
+            const rathCanopy = new THREE.Mesh(new THREE.ConeGeometry(4.5, 8, 8), goldMat);
+            rathCanopy.position.set(2, 6.5, 0);
+            rathGroup.add(rathCanopy);
+
+            // 4 Chariot Wheels
+            [-3, 3].forEach(wx => {
+                [-3.6, 3.6].forEach(wz => {
+                    const wheel = new THREE.Mesh(new THREE.CylinderGeometry(2, 2, 0.5, 16), goldMat);
+                    wheel.rotation.x = Math.PI / 2;
+                    wheel.position.set(wx, 0.5, wz);
+                    rathGroup.add(wheel);
+                });
+            });
+
+            // 4 Stylized Horses pulling the Chariot
+            [-2.4, -0.8, 0.8, 2.4].forEach(hz => {
+                const horse = new THREE.Mesh(new THREE.BoxGeometry(4.2, 2.8, 1.1), goldMat);
+                horse.position.set(-7.5, 2, hz);
+                rathGroup.add(horse);
+            });
+            kurukshetraGroup.add(rathGroup);
+
+            // 4. Sheikh Chilli's Marble Tomb (Northeast Heritage Hillock)
+            const tombGroup = new THREE.Group();
+            tombGroup.position.set(142, 0.5, -142);
+
+            const fortWall = new THREE.Mesh(new THREE.BoxGeometry(34, 6, 34), sandstoneMat);
+            fortWall.position.y = 3;
+            tombGroup.add(fortWall);
+
+            const octagonBase = new THREE.Mesh(new THREE.CylinderGeometry(11, 11, 9, 8), marbleMat);
+            octagonBase.position.y = 10.5;
+            tombGroup.add(octagonBase);
+
+            const onionDome = new THREE.Mesh(new THREE.SphereGeometry(8.5, 24, 24), marbleMat);
+            onionDome.scale.set(1, 1.35, 1);
+            onionDome.position.y = 18;
+            tombGroup.add(onionDome);
+
+            const domeSpire = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.8, 5, 8), goldMat);
+            domeSpire.position.y = 29;
+            tombGroup.add(domeSpire);
+
+            kurukshetraGroup.add(tombGroup);
+
+            // 5. Sacred Ghat Diyas / Warm Lanterns around Brahma Sarovar
+            const diyaMat = makeGlowMaterial(0xff9900, 1.4);
+            for (let x = centerX - 44; x <= centerX + 44; x += 11) {
+                [centerZ - 35, centerZ + 35].forEach(z => {
+                    const diya = new THREE.Mesh(new THREE.SphereGeometry(0.65, 8, 8), diyaMat);
+                    diya.position.set(x, 3.8, z);
+                    kurukshetraGroup.add(diya);
+                });
+            }
+        }
+        buildKurukshetraComplex();
+
+        // ==========================================
+        // 10. ZONE 3 (SE): FARIDABAD INDUSTRIAL & POWER HUB
+        // ==========================================
+        const faridabadGroup = new THREE.Group();
+        worldGroup.add(faridabadGroup);
+
+        const steamParticles = [];
+
+        function buildFaridabadIndustry() {
+            const concreteMat = new THREE.MeshStandardMaterial({ color: 0x64748b, roughness: 0.85 });
+            const steelMat = new THREE.MeshStandardMaterial({ color: 0x334155, roughness: 0.4, metalness: 0.7 });
+            const hazardRedMat = makeGlowMaterial(0xf43f5e, 0.85);
+
+            // 1. Twin Hyperbolic Thermal Power Cooling Towers
+            [[132, 128], [158, 102]].forEach(([tx, tz]) => {
+                const points = [];
+                for (let i = 0; i <= 14; i++) {
+                    const y = (i / 14) * 44;
+                    const r = 9.5 + 4.5 * Math.pow((y - 28) / 28, 2);
+                    points.push(new THREE.Vector2(r, y));
+                }
+                const latheGeo = new THREE.LatheGeometry(points, 28);
+                const coolingTower = new THREE.Mesh(latheGeo, concreteMat);
+                coolingTower.position.set(tx, 0.5, tz);
+                coolingTower.castShadow = true;
+                faridabadGroup.add(coolingTower);
+
+                // Red/White Aviation Hazard Rim
+                const rim = new THREE.Mesh(new THREE.TorusGeometry(10.8, 0.6, 8, 28), hazardRedMat);
+                rim.rotation.x = Math.PI / 2;
+                rim.position.set(tx, 44.5, tz);
+                faridabadGroup.add(rim);
+
+                // Rising Steam Puff Spheres
+                for (let p = 0; p < 6; p++) {
+                    const puff = new THREE.Mesh(
+                        new THREE.SphereGeometry(4 + p * 0.9, 12, 12),
+                        new THREE.MeshStandardMaterial({ color: 0xe2e8f0, transparent: true, opacity: 0.42, roughness: 1 })
+                    );
+                    puff.position.set(tx, 46 + p * 6, tz);
+                    faridabadGroup.add(puff);
+                    steamParticles.push({ mesh: puff, baseX: tx, baseZ: tz, offset: p * 1.1 });
+                }
+            });
+
+            // 2. Automated Tractor & EV Sawtooth Roof Megafactories
+            [[72, 68], [72, 112]].forEach(([fx, fz]) => {
+                const plant = new THREE.Group();
+                plant.position.set(fx, 0.5, fz);
+
+                const hall = new THREE.Mesh(new THREE.BoxGeometry(44, 12, 30), steelMat);
+                hall.position.y = 6;
+                hall.castShadow = true;
+                plant.add(hall);
+
+                // Sawtooth North-Light Skylights + Solar Arrays
+                const skylightMat = makeGlowMaterial(0x38bdf8, 0.7);
+                for (let b = -16; b <= 16; b += 8) {
+                    const ridge = new THREE.Mesh(new THREE.CylinderGeometry(3.5, 3.5, 29, 3), steelMat);
+                    ridge.rotation.x = Math.PI / 2;
+                    ridge.position.set(b, 13.5, 0);
+                    plant.add(ridge);
+
+                    const glassStrip = new THREE.Mesh(new THREE.BoxGeometry(0.8, 2.2, 28), skylightMat);
+                    glassStrip.position.set(b + 2, 13.2, 0);
+                    plant.add(glassStrip);
+                }
+                faridabadGroup.add(plant);
+            });
+
+            // 3. Dry Port Freight Container Yard & Orange Gantry Cranes
+            const yardGroup = new THREE.Group();
+            yardGroup.position.set(132, 0.5, 58);
+
+            const containerColors = [0xef4444, 0x3b82f6, 0x10b981, 0xf59e0b, 0x8b5cf6];
+            for (let row = -2; row <= 2; row++) {
+                for (let col = -3; col <= 3; col++) {
+                    const stackH = 1 + Math.floor(Math.random() * 3);
+                    for (let s = 0; s < stackH; s++) {
+                        const cMat = new THREE.MeshStandardMaterial({
+                            color: containerColors[(Math.abs(row * 3 + col + s)) % containerColors.length],
+                            roughness: 0.6
+                        });
+                        const box = new THREE.Mesh(new THREE.BoxGeometry(7.5, 2.8, 3.2), cMat);
+                        box.position.set(col * 9, 1.4 + s * 2.9, row * 5.2);
+                        box.castShadow = true;
+                        yardGroup.add(box);
+                    }
+                }
+            }
+
+            // Orange Gantry Cranes
+            const craneMat = new THREE.MeshStandardMaterial({ color: 0xf97316, roughness: 0.4, metalness: 0.6 });
+            [-14, 14].forEach(cx => {
+                const beam = new THREE.Mesh(new THREE.BoxGeometry(3.2, 2.5, 34), craneMat);
+                beam.position.set(cx, 18, 0);
+                yardGroup.add(beam);
+
+                [-15, 15].forEach(cz => {
+                    const leg = new THREE.Mesh(new THREE.BoxGeometry(2.2, 18, 2.2), craneMat);
+                    leg.position.set(cx, 9, cz);
+                    yardGroup.add(leg);
+                });
+            });
+            faridabadGroup.add(yardGroup);
+        }
+        buildFaridabadIndustry();
+
+        // ==========================================
+        // 11. ZONE 4 (SW): KARNAL-HISAR GREEN BELT & WIND FARM
+        // ==========================================
+        const agriGroup = new THREE.Group();
+        worldGroup.add(agriGroup);
+
+        const windTurbineRotors = [];
+        const irrigationPivots = [];
+
+        function buildAgriGreenBelt() {
+            // 1. Aravalli Ridge Hills along the Southwest Border
+            const hillMat = new THREE.MeshStandardMaterial({ color: 0x1e3a2f, roughness: 0.9, flatShading: true });
+            const hillPositions = [
+                [-155, 155, 38, 34],
+                [-122, 162, 32, 26],
+                [-162, 118, 30, 28],
+                [-142, 138, 35, 32]
+            ];
+            hillPositions.forEach(([hx, hz, r, h]) => {
+                const hill = new THREE.Mesh(new THREE.ConeGeometry(r, h, 9), hillMat);
+                hill.position.set(hx, h / 2, hz);
+                hill.castShadow = true;
+                hill.receiveShadow = true;
+                agriGroup.add(hill);
+            });
+
+            // 2. Animated Wind Turbines atop the Aravalli Ridge & Fields
+            const turbineMat = new THREE.MeshStandardMaterial({ color: 0xf8fafc, roughness: 0.3, metalness: 0.4 });
+            const turbineLocations = [
+                [-152, 28, 152],
+                [-125, 22, 158],
+                [-160, 24, 120],
+                [-138, 0.5, 98],
+                [-105, 0.5, 138]
+            ];
+            turbineLocations.forEach(([wx, wy, wz]) => {
+                const tGroup = new THREE.Group();
+                tGroup.position.set(wx, wy, wz);
+
+                const mast = new THREE.Mesh(new THREE.CylinderGeometry(0.6, 1.3, 30, 12), turbineMat);
+                mast.position.y = 15;
+                mast.castShadow = true;
+                tGroup.add(mast);
+
+                const nacelle = new THREE.Mesh(new THREE.BoxGeometry(2.2, 2.2, 4.5), turbineMat);
+                nacelle.position.y = 30;
+                tGroup.add(nacelle);
+
+                const rotorGroup = new THREE.Group();
+                rotorGroup.position.set(0, 30, 2.4);
+
+                const hub = new THREE.Mesh(new THREE.ConeGeometry(1.1, 2.5, 12), makeGlowMaterial(0x34d399, 0.7));
+                hub.rotation.x = Math.PI / 2;
+                rotorGroup.add(hub);
+
+                for (let b = 0; b < 3; b++) {
+                    const bladePivot = new THREE.Group();
+                    bladePivot.rotation.z = (b * Math.PI * 2) / 3;
+                    const blade = new THREE.Mesh(new THREE.BoxGeometry(0.85, 14, 0.25), turbineMat);
+                    blade.position.y = 7;
+                    bladePivot.add(blade);
+                    rotorGroup.add(bladePivot);
+                }
+
+                tGroup.add(rotorGroup);
+                agriGroup.add(tGroup);
+                windTurbineRotors.push(rotorGroup);
+            });
+
+            // 3. Center-Pivot Smart Crop Irrigation Booms
+            const greenCropMat = new THREE.MeshStandardMaterial({ color: 0x16a34a, roughness: 0.85 });
+            const goldMustardMat = new THREE.MeshStandardMaterial({ color: 0xeab308, roughness: 0.8 });
+
+            [[-82, 82, greenCropMat], [-82, 132, goldMustardMat]].forEach(([px, pz, mat]) => {
+                const cropCircle = new THREE.Mesh(new THREE.CylinderGeometry(20, 20, 0.6, 32), mat);
+                cropCircle.position.set(px, 0.6, pz);
+                agriGroup.add(cropCircle);
+
+                const pivotArm = new THREE.Group();
+                pivotArm.position.set(px, 2.2, pz);
+
+                const pipe = new THREE.Mesh(
+                    new THREE.CylinderGeometry(0.25, 0.25, 19, 8),
+                    makeGlowMaterial(0x38bdf8, 0.8)
+                );
+                pipe.rotation.z = Math.PI / 2;
+                pipe.position.x = 9.5;
+                pivotArm.add(pipe);
+
+                agriGroup.add(pivotArm);
+                irrigationPivots.push(pivotArm);
+            });
+
+            // 4. Karnal Modern Grain Storage Silo Battery
+            const siloMat = new THREE.MeshStandardMaterial({ color: 0xcbd5e1, roughness: 0.35, metalness: 0.65 });
+            for (let sx = -62; sx <= -44; sx += 9) {
+                for (let sz = 46; sz <= 64; sz += 9) {
+                    const silo = new THREE.Mesh(new THREE.CylinderGeometry(3.6, 3.6, 18, 18), siloMat);
+                    silo.position.set(sx, 9.5, sz);
+                    silo.castShadow = true;
+                    agriGroup.add(silo);
+
+                    const cap = new THREE.Mesh(new THREE.ConeGeometry(3.8, 3.5, 18), siloMat);
+                    cap.position.set(sx, 20.2, sz);
+                    agriGroup.add(cap);
+                }
+            }
+
+            // 5. Banyan & Neem Tree Clusters along Canal & Rural Roads
+            const trunkMat = new THREE.MeshStandardMaterial({ color: 0x5c4033 });
+            const foliageMat = new THREE.MeshStandardMaterial({ color: 0x15803d, roughness: 0.8 });
+            for (let i = 0; i < 45; i++) {
+                const tx = -35 - Math.random() * 130;
+                const tz = 35 + Math.random() * 130;
+                // Avoid placing inside crop circles
+                if (Math.hypot(tx + 82, tz - 82) < 23 || Math.hypot(tx + 82, tz - 132) < 23) continue;
+
+                const tree = new THREE.Group();
+                tree.position.set(tx, 0.5, tz);
+
+                const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.55, 3.2, 6), trunkMat);
+                trunk.position.y = 1.6;
+                tree.add(trunk);
+
+                const crown = new THREE.Mesh(new THREE.DodecahedronGeometry(2.6 + Math.random() * 1.4, 1), foliageMat);
+                crown.position.y = 4.2;
+                crown.castShadow = true;
+                tree.add(crown);
+
+                agriGroup.add(tree);
+            }
+        }
+        buildAgriGreenBelt();
+
+        // ==========================================
+        // 12. ANIMATED HIGHWAY TRAFFIC & MONSOON WEATHER
+        // ==========================================
+        const trafficGroup = new THREE.Group();
+        worldGroup.add(trafficGroup);
+
+        const vehicles = [];
+        const headlightMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
+        const taillightMat = new THREE.MeshBasicMaterial({ color: 0xff1e42 });
+
+        function spawnHighwayTraffic() {
+            for (let i = 0; i < 48; i++) {
+                const isEastWest = i < 28;
+                const dir = i % 2 === 0 ? 1 : -1;
+                const laneOffset = dir * (3.2 + (i % 3) * 2.2);
+
+                const car = new THREE.Group();
+                const bodyMat = makeGlowMaterial(dir > 0 ? 0x38bdf8 : 0xf43f5e, 0.85);
+
+                const chassis = new THREE.Mesh(
+                    new THREE.BoxGeometry(isEastWest ? 3.4 : 1.7, 1.1, isEastWest ? 1.7 : 3.4),
+                    bodyMat
+                );
+                chassis.position.y = 0.6;
+                car.add(chassis);
+
+                // Light streak
+                const streak = new THREE.Mesh(
+                    new THREE.BoxGeometry(isEastWest ? 4.2 : 1.4, 0.4, isEastWest ? 1.4 : 4.2),
+                    dir > 0 ? headlightMat : taillightMat
+                );
+                streak.position.y = 0.5;
+                car.add(streak);
+
+                const startCoord = -185 + Math.random() * 370;
+                if (isEastWest) {
+                    car.position.set(startCoord, 0.8, laneOffset);
+                } else {
+                    car.position.set(-12 + laneOffset * 0.75, 0.8, startCoord);
+                }
+
+                trafficGroup.add(car);
+                vehicles.push({
+                    mesh: car,
+                    isEastWest,
+                    dir,
+                    speed: 0.65 + Math.random() * 0.55
+                });
+            }
+        }
+        spawnHighwayTraffic();
+
+        // Monsoon Rain Particle Layer (Toggled via UI)
+        const rainGeo = new THREE.BufferGeometry();
+        const rainCount = 1500;
+        const rainPos = new Float32Array(rainCount * 3);
+        for (let i = 0; i < rainCount; i++) {
+            rainPos[i * 3] = (Math.random() - 0.5) * 380;
+            rainPos[i * 3 + 1] = Math.random() * 140;
+            rainPos[i * 3 + 2] = (Math.random() - 0.5) * 380;
+        }
+        rainGeo.setAttribute('position', new THREE.BufferAttribute(rainPos, 3));
+        const rainMat = new THREE.PointsMaterial({ color: 0x7dd3fc, size: 0.9, transparent: true, opacity: 0.65 });
+        const rainSystem = new THREE.Points(rainGeo, rainMat);
+        rainSystem.visible = false;
+        scene.add(rainSystem);
+
+        // ==========================================
+        // 13. INTERACTIVE CAMERA CONTROLLER (ORBIT, PAN, ZOOM, WASD)
+        // ==========================================
+        const camState = {
+            radius: 285,
+            theta: 0.78,
+            phi: 1.05,
+            target: new THREE.Vector3(0, 8, 0),
+            desiredRadius: 285,
+            desiredTheta: 0.78,
+            desiredPhi: 1.05,
+            desiredTarget: new THREE.Vector3(0, 8, 0),
+            isDragging: false,
+            isPanning: false,
+            prevX: 0,
+            prevY: 0,
+            autoOrbit: false
+        };
+
+        const activeKeys = {};
+        window.addEventListener('keydown', e => { activeKeys[e.key.toLowerCase()] = true; });
+        window.addEventListener('keyup', e => { activeKeys[e.key.toLowerCase()] = false; });
+
+        const domElem = renderer.domElement;
+        domElem.addEventListener('contextmenu', e => e.preventDefault());
+
+        domElem.addEventListener('mousedown', e => {
+            camState.isDragging = true;
+            camState.isPanning = (e.button === 2 || e.shiftKey);
+            camState.prevX = e.clientX;
+            camState.prevY = e.clientY;
+        });
+
+        window.addEventListener('mousemove', e => {
+            if (!camState.isDragging) return;
+            const dx = e.clientX - camState.prevX;
+            const dy = e.clientY - camState.prevY;
+            camState.prevX = e.clientX;
+            camState.prevY = e.clientY;
+
+            if (camState.isPanning) {
+                const panFactor = camState.radius * 0.0018;
+                const forward = new THREE.Vector3(
+                    -Math.sin(camState.theta),
+                    0,
+                    -Math.cos(camState.theta)
+                ).normalize();
+                const right = new THREE.Vector3().crossVectors(forward, new THREE.Vector3(0, 1, 0)).normalize();
+
+                camState.desiredTarget.addScaledVector(right, -dx * panFactor);
+                camState.desiredTarget.addScaledVector(forward, dy * panFactor);
+                camState.desiredTarget.x = THREE.MathUtils.clamp(camState.desiredTarget.x, -165, 165);
+                camState.desiredTarget.z = THREE.MathUtils.clamp(camState.desiredTarget.z, -165, 165);
+            } else {
+                camState.desiredTheta -= dx * 0.0065;
+                camState.desiredPhi = THREE.MathUtils.clamp(camState.desiredPhi - dy * 0.0065, 0.22, 1.48);
+            }
+        });
+
+        window.addEventListener('mouseup', () => {
+            camState.isDragging = false;
+        });
+
+        domElem.addEventListener('wheel', e => {
+            e.preventDefault();
+            camState.desiredRadius = THREE.MathUtils.clamp(camState.desiredRadius + e.deltaY * 0.16, 38, 440);
+        }, { passive: false });
+
+        // Touch Support for Mobile/Tablet
+        let touchDist = 0;
+        domElem.addEventListener('touchstart', e => {
+            if (e.touches.length === 1) {
+                camState.isDragging = true;
+                camState.isPanning = false;
+                camState.prevX = e.touches[0].clientX;
+                camState.prevY = e.touches[0].clientY;
+            } else if (e.touches.length === 2) {
+                camState.isDragging = false;
+                touchDist = Math.hypot(
+                    e.touches[0].clientX - e.touches[1].clientX,
+                    e.touches[0].clientY - e.touches[1].clientY
+                );
+            }
+        }, { passive: true });
+
+        domElem.addEventListener('touchmove', e => {
+            if (e.touches.length === 1 && camState.isDragging) {
+                const dx = e.touches[0].clientX - camState.prevX;
+                const dy = e.touches[0].clientY - camState.prevY;
+                camState.prevX = e.touches[0].clientX;
+                camState.prevY = e.touches[0].clientY;
+                camState.desiredTheta -= dx * 0.007;
+                camState.desiredPhi = THREE.MathUtils.clamp(camState.desiredPhi - dy * 0.007, 0.22, 1.48);
+            } else if (e.touches.length === 2) {
+                const newDist = Math.hypot(
+                    e.touches[0].clientX - e.touches[1].clientX,
+                    e.touches[0].clientY - e.touches[1].clientY
+                );
+                camState.desiredRadius = THREE.MathUtils.clamp(
+                    camState.desiredRadius - (newDist - touchDist) * 0.45,
+                    38,
+                    440
+                );
+                touchDist = newDist;
+            }
+        }, { passive: true });
+
+        domElem.addEventListener('touchend', () => { camState.isDragging = false; });
+
+        // ==========================================
+        // 14. FLOATING 3D HTML MARKERS & UI FUNCTIONS
+        // ==========================================
+        const markersLayer = document.getElementById('markers-layer');
+        let pinsVisible = true;
+        const markerElements = [];
+
+        function create3DMarkers() {
+            markersLayer.innerHTML = '';
+            WORLD_PINS.forEach(pin => {
+                const el = document.createElement('div');
+                el.className = 'map-pin group';
+                el.onclick = () => selectDistrict(pin.id);
+
+                el.innerHTML = `
+                    <div class="relative flex items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-950/90 border border-white/20 shadow-xl backdrop-blur-md">
+                        <span class="w-2.5 h-2.5 rounded-full" style="background:${pin.color}; box-shadow: 0 0 10px ${pin.color}"></span>
+                        <div>
+                            <div class="text-[11px] font-bold text-white leading-none whitespace-nowrap">${pin.title}</div>
+                            <div class="text-[9px] text-slate-400 mt-0.5 whitespace-nowrap">${pin.sub}</div>
+                        </div>
+                    </div>
+                    <div class="w-0.5 h-4 mx-auto" style="background: linear-gradient(to bottom, ${pin.color}, transparent)"></div>
+                    <div class="pin-pulse" style="background:${pin.color}"></div>
+                `;
+                markersLayer.appendChild(el);
+                markerElements.push({ el, pos: new THREE.Vector3(pin.x, pin.y, pin.z) });
+            });
+        }
+        create3DMarkers();
+
+        function update3DMarkersProjection() {
+            if (!pinsVisible) return;
+            const halfW = window.innerWidth / 2;
+            const halfH = window.innerHeight / 2;
+
+            markerElements.forEach(item => {
+                const projected = item.pos.clone().project(camera);
+                if (projected.z > 1) {
+                    item.el.style.display = 'none';
+                } else {
+                    const x = (projected.x * halfW) + halfW;
+                    const y = -(projected.y * halfH) + halfH;
+                    item.el.style.display = 'block';
+                    item.el.style.left = `${x}px`;
+                    item.el.style.top = `${y}px`;
+                }
+            });
+        }
+
+        function selectDistrict(districtKey) {
+            const data = DISTRICTS[districtKey];
+            if (!data) return;
+
+            // Highlight Dock Pill
+            document.querySelectorAll('nav .glass-pill').forEach(btn => btn.classList.remove('active'));
+            const activeBtn = document.getElementById(`dock-${districtKey}`);
+            if (activeBtn) activeBtn.classList.add('active');
+
+            // Update Left Inspector Drawer
+            document.getElementById('district-badge').innerHTML = `
+                <span class="w-2 h-2 rounded-full bg-sky-400"></span> ${data.badge}
+            `;
+            document.getElementById('district-title').textContent = data.title;
+            document.getElementById('district-subtitle').textContent = data.subtitle;
+            document.getElementById('district-desc').textContent = data.desc;
+
+            data.metrics.forEach((m, idx) => {
+                document.getElementById(`metric-${idx + 1}-label`).textContent = m.label;
+                document.getElementById(`metric-${idx + 1}-val`).textContent = m.val;
+            });
+
+            // Populate Landmarks List
+            const listEl = document.getElementById('landmark-list');
+            listEl.innerHTML = '';
+            data.landmarks.forEach(lm => {
+                const btn = document.createElement('button');
+                btn.className = 'w-full flex items-center justify-between px-3 py-2 rounded-xl bg-slate-900/70 hover:bg-sky-500/20 border border-slate-800 hover:border-sky-400/40 text-left transition group';
+                btn.onclick = () => focusLandmark(lm);
+                btn.innerHTML = `
+                    <div>
+                        <div class="text-xs font-semibold text-slate-200 group-hover:text-white">${lm.name}</div>
+                        <div class="text-[10px] text-slate-400">${lm.zone}</div>
+                    </div>
+                    <span class="text-[10px] text-sky-400 font-semibold group-hover:translate-x-0.5 transition">Fly To →</span>
+                `;
+                listEl.appendChild(btn);
+            });
+
+            // Animate Camera to District
+            camState.desiredRadius = data.camPos.radius;
+            camState.desiredTheta = data.camPos.theta;
+            camState.desiredPhi = data.camPos.phi;
+            camState.desiredTarget.set(data.camPos.targetX, data.camPos.targetY, data.camPos.targetZ);
+        }
+
+        function focusLandmark(lm) {
+            camState.desiredRadius = lm.radius;
+            camState.desiredTheta = lm.theta;
+            camState.desiredPhi = lm.phi;
+            camState.desiredTarget.set(lm.x, lm.y, lm.z);
+        }
+
+        function resetCameraView() {
+            selectDistrict('overview');
+        }
+
+        function togglePins() {
+            pinsVisible = !pinsVisible;
+            markersLayer.style.display = pinsVisible ? 'block' : 'none';
+            const btn = document.getElementById('btn-pins');
+            btn.classList.toggle('bg-sky-500/20', pinsVisible);
+            btn.classList.toggle('text-sky-300', pinsVisible);
+        }
+
+        function toggleAutoOrbit() {
+            camState.autoOrbit = !camState.autoOrbit;
+            const btn = document.getElementById('btn-orbit');
+            btn.classList.toggle('bg-sky-500/20', camState.autoOrbit);
+            btn.classList.toggle('border-sky-400/40', camState.autoOrbit);
+            btn.classList.toggle('text-sky-300', camState.autoOrbit);
+        }
+
+        function toggleLayer(layer) {
+            if (layer === 'traffic') {
+                trafficGroup.visible = !trafficGroup.visible;
+                document.getElementById('layer-traffic').classList.toggle('bg-sky-500/20', trafficGroup.visible);
+                document.getElementById('layer-traffic').classList.toggle('border-sky-400/40', trafficGroup.visible);
+            } else if (layer === 'weather') {
+                rainSystem.visible = !rainSystem.visible;
+                document.getElementById('layer-weather').classList.toggle('bg-sky-500/20', rainSystem.visible);
+                document.getElementById('layer-weather').classList.toggle('border-sky-400/40', rainSystem.visible);
+            } else if (layer === 'grid') {
+                gisGridHelper.visible = !gisGridHelper.visible;
+                document.getElementById('layer-grid').classList.toggle('bg-sky-500/20', gisGridHelper.visible);
+                document.getElementById('layer-grid').classList.toggle('border-sky-400/40', gisGridHelper.visible);
+            }
+        }
+
+        function toggleMobileDrawer() {
+            const drawer = document.getElementById('info-drawer');
+            drawer.classList.toggle('-translate-x-[110%]');
+        }
+
+        // ==========================================
+        // 15. DYNAMIC SOLAR TIME & DAY/NIGHT ENGINE
+        // ==========================================
+        function setTimePreset(hourVal) {
+            document.getElementById('time-slider').value = hourVal;
+            updateSolarTime(hourVal);
+        }
+
+        function updateSolarTime(val) {
+            const hour = parseFloat(val);
+            const hrs = Math.floor(hour);
+            const mins = Math.floor((hour - hrs) * 60);
+            document.getElementById('clock-display').textContent =
+                `${String(hrs).padStart(2, '0')}:${String(mins).padStart(2, '0')} IST`;
+
+            // Calculate sun elevation (-1 at midnight to +1 at noon)
+            const sunAngle = ((hour - 6) / 24) * Math.PI * 2;
+            const elev = Math.sin(sunAngle);
+            const horiz = Math.cos(sunAngle);
+
+            dirLight.position.set(horiz * 240, Math.max(25, Math.abs(elev) * 220), 95);
+            celestialOrb.position.set(horiz * 380, elev * 280, -180);
+
+            const isNight = elev < -0.08;
+            const isGolden = elev >= -0.08 && elev < 0.32;
+
+            // Highlight active time button
+            ['btn-day', 'btn-dusk', 'btn-night'].forEach(id => {
+                document.getElementById(id).className = 'px-2.5 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1.5 text-slate-300 hover:text-white transition';
+            });
+            const activeId = isNight ? 'btn-night' : (isGolden ? 'btn-dusk' : 'btn-day');
+            document.getElementById(activeId).className = 'px-2.5 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1.5 bg-sky-500/20 text-sky-300 border border-sky-400/30 transition';
+
+            if (isNight) {
+                scene.background.setHex(0x060a17);
+                scene.fog.color.setHex(0x060a17);
+                dirLight.color.setHex(0x38bdf8);
+                dirLight.intensity = 0.35;
+                ambientLight.intensity = 0.55;
+                starField.visible = true;
+                celestialOrb.material.color.setHex(0xe2e8f0);
+
+                nightEmissiveMaterials.forEach(m => {
+                    m.emissiveIntensity = m.userData.baseIntensity * 1.25;
+                });
+            } else if (isGolden) {
+                scene.background.setHex(0x28162b);
+                scene.fog.color.setHex(0x28162b);
+                dirLight.color.setHex(0xf97316);
+                dirLight.intensity = 1.45;
+                ambientLight.intensity = 0.75;
+                starField.visible = false;
+                celestialOrb.material.color.setHex(0xfbbf24);
+
+                nightEmissiveMaterials.forEach(m => {
+                    m.emissiveIntensity = m.userData.baseIntensity * 0.75;
+                });
+            } else {
+                scene.background.setHex(0x7dd3fc);
+                scene.fog.color.setHex(0xbae6fd);
+                dirLight.color.setHex(0xffffff);
+                dirLight.intensity = 1.75;
+                ambientLight.intensity = 1.05;
+                starField.visible = false;
+                celestialOrb.material.color.setHex(0xfef08a);
+
+                nightEmissiveMaterials.forEach(m => {
+                    m.emissiveIntensity = m.userData.baseIntensity * 0.15;
+                });
+            }
+        }
+
+        // ==========================================
+        // 16. RADAR MINIMAP RENDERING & INTERACTION
+        // ==========================================
+        const miniCanvas = document.getElementById('minimap-canvas');
+        const miniCtx = miniCanvas.getContext('2d');
+
+        miniCanvas.addEventListener('click', e => {
+            const rect = miniCanvas.getBoundingClientRect();
+            const nx = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+            const nz = ((e.clientY - rect.top) / rect.height) * 2 - 1;
+            camState.desiredTarget.set(nx * 165, 12, nz * 165);
+        });
+
+        function drawRadarMinimap() {
+            const w = miniCanvas.width;
+            const h = miniCanvas.height;
+            miniCtx.clearRect(0, 0, w, h);
+
+            // Quadrants
+            miniCtx.fillStyle = 'rgba(56, 189, 248, 0.14)';
+            miniCtx.fillRect(6, 6, w / 2 - 10, h / 2 - 10);
+
+            miniCtx.fillStyle = 'rgba(251, 191, 36, 0.14)';
+            miniCtx.fillRect(w / 2 + 4, 6, w / 2 - 10, h / 2 - 10);
+
+            miniCtx.fillStyle = 'rgba(244, 63, 94, 0.14)';
+            miniCtx.fillRect(w / 2 + 4, h / 2 + 4, w / 2 - 10, h / 2 - 10);
+
+            miniCtx.fillStyle = 'rgba(52, 211, 153, 0.14)';
+            miniCtx.fillRect(6, h / 2 + 4, w / 2 - 10, h / 2 - 10);
+
+            // NH-48 & Canal Crosshairs
+            miniCtx.strokeStyle = 'rgba(148, 163, 184, 0.45)';
+            miniCtx.lineWidth = 2;
+            miniCtx.beginPath();
+            miniCtx.moveTo(0, h / 2);
+            miniCtx.lineTo(w, h / 2);
+            miniCtx.moveTo(w / 2, 0);
+            miniCtx.lineTo(w / 2, h);
+            miniCtx.stroke();
+
+            // Plot Camera Target & View Cone
+            const tx = ((camState.target.x / 190) * 0.5 + 0.5) * w;
+            const tz = ((camState.target.z / 190) * 0.5 + 0.5) * h;
+
+            miniCtx.fillStyle = '#38bdf8';
+            miniCtx.beginPath();
+            miniCtx.arc(tx, tz, 4.5, 0, Math.PI * 2);
+            miniCtx.fill();
+
+            miniCtx.strokeStyle = 'rgba(56, 189, 248, 0.7)';
+            miniCtx.beginPath();
+            miniCtx.moveTo(tx, tz);
+            miniCtx.lineTo(tx + Math.sin(camState.theta - 0.4) * 26, tz + Math.cos(camState.theta - 0.4) * 26);
+            miniCtx.lineTo(tx + Math.sin(camState.theta + 0.4) * 26, tz + Math.cos(camState.theta + 0.4) * 26);
+            miniCtx.closePath();
+            miniCtx.stroke();
+        }
+
+        // ==========================================
+        // 17. MASTER ANIMATION LOOP & TELEMETRY
+        // ==========================================
+        const clock = new THREE.Clock();
+        let frameCount = 0;
+        let lastFpsUpdate = performance.now();
+
+        function animate() {
+            requestAnimationFrame(animate);
+
+            const delta = Math.min(clock.getDelta(), 0.1);
+            const elapsed = clock.getElapsedTime();
+
+            // FPS Counter
+            frameCount++;
+            const now = performance.now();
+            if (now - lastFpsUpdate >= 1000) {
+                document.getElementById('fps-counter').textContent = `${frameCount} FPS`;
+                frameCount = 0;
+                lastFpsUpdate = now;
+            }
+
+            // 1. Keyboard WASD Fly Roaming
+            const moveSpeed = 85 * delta;
+            const forward = new THREE.Vector3(-Math.sin(camState.theta), 0, -Math.cos(camState.theta)).normalize();
+            const right = new THREE.Vector3().crossVectors(forward, new THREE.Vector3(0, 1, 0)).normalize();
+
+            if (activeKeys['w'] || activeKeys['arrowup']) camState.desiredTarget.addScaledVector(forward, moveSpeed);
+            if (activeKeys['s'] || activeKeys['arrowdown']) camState.desiredTarget.addScaledVector(forward, -moveSpeed);
+            if (activeKeys['a'] || activeKeys['arrowleft']) camState.desiredTarget.addScaledVector(right, -moveSpeed);
+            if (activeKeys['d'] || activeKeys['arrowright']) camState.desiredTarget.addScaledVector(right, moveSpeed);
+
+            // 2. Auto Orbit Drone Camera
+            if (camState.autoOrbit && !camState.isDragging) {
+                camState.desiredTheta += 0.18 * delta;
+            }
+
+            // Smooth Damping Interpolation
+            camState.radius += (camState.desiredRadius - camState.radius) * 0.08;
+            camState.theta += (camState.desiredTheta - camState.theta) * 0.08;
+            camState.phi += (camState.desiredPhi - camState.phi) * 0.08;
+            camState.target.lerp(camState.desiredTarget, 0.08);
+
+            camera.position.x = camState.target.x + camState.radius * Math.sin(camState.phi) * Math.sin(camState.theta);
+            camera.position.y = camState.target.y + camState.radius * Math.cos(camState.phi);
+            camera.position.z = camState.target.z + camState.radius * Math.sin(camState.phi) * Math.cos(camState.theta);
+            camera.lookAt(camState.target);
+
+            // 3. Animate Rapid Metro Trains along Viaduct Spline
+            metroTrains.forEach(train => {
+                train.baseProgress = (train.baseProgress + train.speed * delta) % 1;
+                train.coaches.forEach((coach, idx) => {
+                    const p = (train.baseProgress - idx * 0.022 + 1) % 1;
+                    const lookP = (p + 0.008) % 1;
+                    const pos = metroCurve.getPointAt(p);
+                    const nextPos = metroCurve.getPointAt(lookP);
+                    coach.position.copy(pos);
+                    coach.position.y += 1.9;
+                    coach.lookAt(nextPos.x, nextPos.y + 1.9, nextPos.z);
+                });
+            });
+
+            // 4. Animate NH-48 & KMP Highway Vehicles
+            if (trafficGroup.visible) {
+                vehicles.forEach(v => {
+                    if (v.isEastWest) {
+                        v.mesh.position.x += v.dir * v.speed;
+                        if (v.mesh.position.x > 190) v.mesh.position.x = -190;
+                        if (v.mesh.position.x < -190) v.mesh.position.x = 190;
+                    } else {
+                        v.mesh.position.z += v.dir * v.speed;
+                        if (v.mesh.position.z > 190) v.mesh.position.z = -190;
+                        if (v.mesh.position.z < -190) v.mesh.position.z = 190;
+                    }
+                });
+            }
+
+            // 5. Animate Aravalli Wind Turbines & Irrigation Pivots
+            windTurbineRotors.forEach((rotor, i) => {
+                rotor.rotation.z -= (1.6 + i * 0.15) * delta;
+            });
+            irrigationPivots.forEach(pivot => {
+                pivot.rotation.y += 0.35 * delta;
+            });
+
+            // 6. Animate Faridabad Cooling Tower Steam Plumes
+            steamParticles.forEach(sp => {
+                const cycle = (elapsed * 0.45 + sp.offset) % 6;
+                sp.mesh.position.y = 45 + cycle * 6.5;
+                sp.mesh.position.x = sp.baseX + Math.sin(elapsed + sp.offset) * 2.5;
+                const s = 0.7 + cycle * 0.32;
+                sp.mesh.scale.set(s, s, s);
+                sp.mesh.material.opacity = Math.max(0, (1 - cycle / 6) * 0.45);
+            });
+
+            // 7. Blink Skyscraper Aviation Beacons
+            const blinkOn = Math.sin(elapsed * 5) > 0;
+            aviationBeacons.forEach(b => { b.visible = blinkOn; });
+
+            // 8. Monsoon Rain Fall
+            if (rainSystem.visible) {
+                const posArr = rainSystem.geometry.attributes.position.array;
+                for (let i = 1; i < posArr.length; i += 3) {
+                    posArr[i] -= 110 * delta;
+                    if (posArr[i] < 0) posArr[i] = 140;
+                }
+                rainSystem.geometry.attributes.position.needsUpdate = true;
+            }
+
+            // Update 3D HTML Pins & Radar Minimap
+            update3DMarkersProjection();
+            drawRadarMinimap();
+
+            renderer.render(scene, camera);
+        }
+
+        // Handle Responsive Viewport Resize
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        // Initialize Default State View & Start WebGL Loop on Load
+        window.onload = function () {
+            selectDistrict('overview');
+            updateSolarTime(21.5);
+            animate();
+        };
+    </script>
+</body>
+</html>
